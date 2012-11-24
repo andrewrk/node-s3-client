@@ -1,0 +1,29 @@
+{
+  "name": "s3",
+  "version": "0.0.0",
+  "description": "high level amazon s3 client using knox as a backend",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/superjoe30/node-s3"
+  },
+  "keywords": [
+    "amazon",
+    "s3",
+    "high",
+    "level",
+    "api"
+  ],
+  "author": "Andrew Kelley",
+  "license": "BSD",
+  "devDependencies": {
+    "mocha": "~1.7.1",
+    "mkdirp": "~0.3.4"
+  },
+  "dependencies": {
+    "knox": "~0.4.1"
+  }
+}
