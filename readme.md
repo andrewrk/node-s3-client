@@ -1,3 +1,11 @@
+Install:
+--------
+`npm install --save s3_`
+
+There is an underscore because [someone is squatting](https://npmjs.org/package/s3)
+on the 's3' package name. I'm pretty sure this is going to get transferred to this
+project within a couple weeks. - Nov 24 2012
+
 Usage:
 ------
 ```js
