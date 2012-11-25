@@ -29,7 +29,7 @@ uploader.on('end', function() {
 // download a file from s3
 var downloader = client.download("some/remote/file", "some/local/file");
 downloader.on('error', function(err) {
-  console.error("unable to upload:", err.stack);
+  console.error("unable to download:", err.stack);
 });
 downloader.on('progress', function(amountDone, amountTotal) {
   console.log("progress", amountDone, amountTotal);
