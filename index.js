@@ -3,12 +3,18 @@ var knox = require('knox')
   , fs = require('fs');
 
 exports.createClient = function(options) {
-  return new Client(options);
+  var client = new Client();
+  client.knox = knox.createClient(options);
+  return client;
 };
 
-function Client(options) {
-  this.knox = knox.createClient(options);
+exports.fromKnox = function(knoxClient) {
+  var client = new Client();
+  client.knox = knoxClient;
+  return client;
 }
+
+function Client(options) {}
 
 Client.prototype.upload = function(localFile, remoteFile) {
   var uploader = new EventEmitter();

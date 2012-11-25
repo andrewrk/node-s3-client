@@ -7,12 +7,12 @@ Usage:
 ```js
 // configure
 var s3 = require('s3-client');
+// createClient allows any options that knox does.
 var client = s3.createClient({
   key: "your s3 key",
   secret: "your s3 secret",
   bucket: "your s3 bucket"
 });
-// createClient allows any options that knox does.
 
 // upload a file to s3
 var uploader = client.upload("some/local/file", "some/remote/file");
@@ -38,8 +38,10 @@ downloader.on('end', function() {
   console.log("done");
 });
 
-// get access to the underlying knox client
-var knoxClient = s3.createClient(options).knox;
+// instantiate from existing knox client
+var knoxClient = knox.createClient(options);
+var client = s3.fromKnox(knoxClient);
+
 ```
 
 This module uses [knox](https://github.com/LearnBoost/knox) as a backend. If
