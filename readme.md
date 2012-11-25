@@ -10,7 +10,7 @@ Usage:
 ------
 ```js
 // configure
-var s3 = require('s3');
+var s3 = require('s3_');
 var client = s3.createClient({
   key: "your s3 key",
   secret: "your s3 secret",
@@ -41,6 +41,9 @@ downloader.on('progress', function(amountDone, amountTotal) {
 downloader.on('end', function() {
   console.log("done");
 });
+
+// get access to the underlying knox client
+var knoxClient = s3.createClient(options).knox;
 ```
 
 This module uses [knox](https://github.com/LearnBoost/knox) as a backend. If
