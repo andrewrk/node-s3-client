@@ -13,6 +13,7 @@ var client = s3.createClient({
   bucket: "your s3 bucket"
 });
 // createClient allows any options that knox does.
+// you can also pass it knox clients directly: s3.createClient(knoxClient).
 
 // upload a file to s3
 var uploader = client.upload("some/local/file", "some/remote/file");
