@@ -1,16 +1,12 @@
 Install:
 --------
-`npm install --save s3_`
-
-There is an underscore because [someone is squatting](https://npmjs.org/package/s3)
-on the 's3' package name. I'm pretty sure this is going to get transferred to this
-project within a couple weeks. - Nov 24 2012
+`npm install --save s3-client`
 
 Usage:
 ------
 ```js
 // configure
-var s3 = require('s3_');
+var s3 = require('s3-client');
 var client = s3.createClient({
   key: "your s3 key",
   secret: "your s3 secret",
