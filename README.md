@@ -1,12 +1,12 @@
 Install:
 --------
-`npm install --save s3-client`
+`npm install --save s3`
 
 Usage:
 ------
 ```js
 // configure
-var s3 = require('s3-client');
+var s3 = require('s3');
 // createClient allows any options that knox does.
 var client = s3.createClient({
   key: "your s3 key",
