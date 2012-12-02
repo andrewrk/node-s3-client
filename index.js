@@ -16,9 +16,13 @@ exports.fromKnox = function(knoxClient) {
 
 function Client(options) {}
 
-Client.prototype.upload = function(localFile, remoteFile) {
+Client.prototype.upload = function(localFile, remoteFile, headers) {
+  
+  if (typeof headers != 'object')
+    headers = { };
+  
   var uploader = new EventEmitter();
-  var knoxUpload = this.knox.putFile(localFile, remoteFile, function (err, resp) {
+  var knoxUpload = this.knox.putFile(localFile, remoteFile, headers, function (err, resp) {
     if (err) {
       uploader.emit('error', err);
     } else if (resp.statusCode === 200) {
