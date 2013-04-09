@@ -10,6 +10,7 @@ var s3 = require('../')
 
 function createClient() {
   return s3.createClient({
+    secure: false,
     key: process.env.S3_KEY,
     secret: process.env.S3_SECRET,
     bucket: process.env.S3_BUCKET
@@ -55,7 +56,7 @@ describe("s3", function () {
       });
       uploader.on('end', function() {
         assert.strictEqual(progress, 1);
-        assert(progressEventCount >= 3, "expected at least 3 progress events. got " + progressEventCount);
+        assert(progressEventCount >= 2, "expected at least 2 progress events. got " + progressEventCount);
         done();
       });
     });
