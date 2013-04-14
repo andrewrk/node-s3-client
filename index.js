@@ -39,6 +39,7 @@ Client.prototype.upload = function(localFile, remoteFile, headers) {
 
 Client.prototype.download = function(remoteFile, localFile) {
   var downloader = new EventEmitter();
+  var headers;
   var amountDone = 0;
   var amountTotal;
   var writeStream;
@@ -47,6 +48,7 @@ Client.prototype.download = function(remoteFile, localFile) {
       downloader.emit('error', err);
     } else if (resp.statusCode === 200) {
       amountTotal = parseInt(resp.headers['content-length'], 10);
+      headers = resp.headers;
       var writeStream = fs.createWriteStream(localFile);
       writeStream.on('error', onError);
       resp.on('error', onError);
@@ -69,7 +71,7 @@ Client.prototype.download = function(remoteFile, localFile) {
     function onSuccess() {
       removeListeners();
       writeStream.end();
-      downloader.emit('end');
+      downloader.emit('end', { headers: headers });
     }
     function onData(data) {
       amountDone += data.length;
