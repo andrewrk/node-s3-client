@@ -25,8 +25,8 @@ Client.prototype.upload = function(localFile, remoteFile, headers) {
   var knoxUpload = this.knox.putFile(localFile, remoteFile, headers, function (err, resp) {
     if (err) {
       uploader.emit('error', err);
-    } else if (resp.statusCode === 200) {
-      uploader.emit('end');
+    } else if (resp.statusCode === 200 || resp.statusCode === 307) {
+      uploader.emit('end', resp.req.url);
     } else {
       uploader.emit('error', new Error("s3 http status code " + resp.statusCode));
     }
@@ -46,7 +46,7 @@ Client.prototype.download = function(remoteFile, localFile) {
   var knoxDownload = this.knox.getFile(remoteFile, function (err, resp) {
     if (err) {
       downloader.emit('error', err);
-    } else if (resp.statusCode === 200) {
+    } else if (resp.statusCode === 200 || resp.statusCode === 307) {
       amountTotal = parseInt(resp.headers['content-length'], 10);
       headers = resp.headers;
       var writeStream = fs.createWriteStream(localFile);
@@ -56,7 +56,7 @@ Client.prototype.download = function(remoteFile, localFile) {
       resp.on('data', onData);
       resp.pipe(writeStream);
     } else {
-      downloader.emit('error', new Error("s3 http status code" + resp.statusCode));
+      downloader.emit('error', new Error("s3 http status code " + resp.statusCode));
     }
     function removeListeners() {
       writeStream.removeListener('error', onError);
