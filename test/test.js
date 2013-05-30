@@ -54,9 +54,10 @@ describe("s3", function () {
         assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);
         progress = newProgress;
       });
-      uploader.on('end', function() {
+      uploader.on('end', function(url) {
         assert.strictEqual(progress, 1);
         assert(progressEventCount >= 2, "expected at least 2 progress events. got " + progressEventCount);
+        assert(url !== "", "expected a url. got " + url);
         done();
       });
     });

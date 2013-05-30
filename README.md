@@ -22,8 +22,8 @@ uploader.on('error', function(err) {
 uploader.on('progress', function(amountDone, amountTotal) {
   console.log("progress", amountDone, amountTotal);
 });
-uploader.on('end', function() {
-  console.log("done");
+uploader.on('end', function(url) {
+  console.log("file available at", url);
 });
 
 // download a file from s3
