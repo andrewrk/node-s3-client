@@ -24,6 +24,6 @@
     "mkdirp": "~0.3.5"
   },
   "dependencies": {
-    "knox": "~0.7.0"
+    "knox": "~0.8.3"
   }
 }
