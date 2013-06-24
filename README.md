@@ -17,8 +17,8 @@ var client = s3.createClient({
 
 // optional headers
 var headers = {
-  'Content-Type' = 'image/jpg',
-  'x-amz-acl' : 'public-read'
+  'Content-Type' : 'image/jpg',
+  'x-amz-acl'    : 'public-read'
 };
 
 // upload a file to s3
