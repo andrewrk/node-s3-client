@@ -7,6 +7,7 @@ Usage:
 ```js
 // configure
 var s3 = require('s3');
+
 // createClient allows any options that knox does.
 var client = s3.createClient({
   key: "your s3 key",
@@ -14,8 +15,14 @@ var client = s3.createClient({
   bucket: "your s3 bucket"
 });
 
+// optional headers
+var headers = {
+  'Content-Type' = 'image/jpg',
+  'x-amz-acl' : 'public-read'
+};
+
 // upload a file to s3
-var uploader = client.upload("some/local/file", "some/remote/file");
+var uploader = client.upload("some/local/file", "some/remote/file", headers);
 uploader.on('error', function(err) {
   console.error("unable to upload:", err.stack);
 });
