@@ -58,3 +58,11 @@ both.
 Testing:
 --------
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`
+
+History:
+--------
+
+### 0.3.1
+
+ * fix `resp.req.url` sometimes not defined causing crash
+ * fix emitting `end` event before write completely finished
