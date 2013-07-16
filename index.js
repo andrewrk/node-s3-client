@@ -70,8 +70,9 @@ Client.prototype.download = function(remoteFile, localFile) {
     }
     function onSuccess() {
       removeListeners();
-      writeStream.end();
-      downloader.emit('end', { headers: headers });
+      writeStream.end(null,null,function(){
+      	downloader.emit('end', { headers: headers });
+      });
     }
     function onData(data) {
       amountDone += data.length;
