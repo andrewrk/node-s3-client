@@ -26,7 +26,8 @@ Client.prototype.upload = function(localFile, remoteFile, headers) {
     if (err) {
       uploader.emit('error', err);
     } else if (resp.statusCode === 200 || resp.statusCode === 307) {
-      uploader.emit('end', resp.req && resp.req.url || resp.url);
+      // sometimes resp.req is undefined. nobody knows why
+      uploader.emit('end', resp.req ? resp.req.url : resp.url);
     } else {
       uploader.emit('error', new Error("s3 http status code " + resp.statusCode));
     }
