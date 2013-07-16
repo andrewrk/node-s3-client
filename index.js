@@ -70,8 +70,9 @@ Client.prototype.download = function(remoteFile, localFile) {
     }
     function onSuccess() {
       removeListeners();
-      writeStream.end(null,null,function(){
-      	downloader.emit('end', { headers: headers });
+      // make sure the stream has ended before we emit the event
+      writeStream.end(null, null, function() {
+        downloader.emit('end', { headers: headers });
       });
     }
     function onData(data) {
