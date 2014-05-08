@@ -1,7 +1,7 @@
 {
   "name": "s3",
   "version": "0.3.1",
-  "description": "high level amazon s3 client using knox as a backend",
+  "description": "high level amazon s3 client. upload and download files and directories",
   "main": "index.js",
   "scripts": {
     "test": "mocha"
@@ -13,17 +13,24 @@
   "keywords": [
     "amazon",
     "s3",
-    "high",
-    "level",
-    "api"
+    "sync",
+    "folder",
+    "directory",
+    "retry",
+    "limit",
+    "stream",
+    "async"
   ],
   "author": "Andrew Kelley",
   "license": "BSD",
   "devDependencies": {
-    "mocha": "~1.9.0",
-    "mkdirp": "~0.3.5"
+    "mocha": "^1.18.2",
+    "mkdirp": "^0.5.0"
   },
   "dependencies": {
-    "knox": "~0.8.3"
+    "aws-sdk": "^2.0.0-rc.14",
+    "s3-upload-stream": "^0.2.0",
+    "findit": "^1.2.0",
+    "pend": "^1.1.1"
   }
 }

@@ -1,66 +1,92 @@
-Install:
---------
-`npm install --save s3`
+# High Level Amazon S3 Client
 
-Usage:
-------
+## Features
+
+ * Automatically retry a configurable number of times when S3 returns an error.
+ * No limits. Includes logic to make multiple requests when there is a
+   1000 object limit etc.
+ * Streaming upload - you don't have to know the content length of your stream.
+ * Ability to set a limit on the maximum parallelization of S3 requests.
+   Retries get pushed to the end of the paralellization queue.
+ * Ability to sync a dir to and from S3.
+
+## Usage
+
 ```js
-// configure
 var s3 = require('s3');
 
-// createClient allows any options that knox does.
 var client = s3.createClient({
-  key: "your s3 key",
-  secret: "your s3 secret",
-  bucket: "your s3 bucket"
+  accessKeyId: "your s3 key",
+  secretAccessKey: "your s3 secret",
+  maxRetries: 3, // optional
+  // any other options are passed to new AWS.S3()
+  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
 });
 
-// optional headers
-var headers = {
-  'Content-Type' : 'image/jpg',
-  'x-amz-acl'    : 'public-read'
-};
-
 // upload a file to s3
-var uploader = client.upload("some/local/file", "some/remote/file", headers);
+var params = {
+  localFile: "some/local/file",
+
+  Bucket: "s3 bucket name",
+  Key: "some/remote/file",
+  // other options supported by putObject, except Body and ContentLength.
+  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+};
+var uploader = client.uploadFile(params);
 uploader.on('error', function(err) {
   console.error("unable to upload:", err.stack);
 });
-uploader.on('progress', function(amountDone, amountTotal) {
-  console.log("progress", amountDone, amountTotal);
-});
-uploader.on('end', function(url) {
-  console.log("file available at", url);
+uploader.on('end', function() {
+  console.log("done uploading");
 });
 
 // download a file from s3
-var downloader = client.download("some/remote/file", "some/local/file");
+var params = {
+  localFile: "some/local/file",
+
+  Bucket: "s3 bucket name",
+  Key: "some/remote/file",
+  // other options supported by getObject
+  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
+};
+var downloader = client.downloadFile(params);
 downloader.on('error', function(err) {
   console.error("unable to download:", err.stack);
 });
-downloader.on('progress', function(amountDone, amountTotal) {
-  console.log("progress", amountDone, amountTotal);
-});
 downloader.on('end', function() {
-  console.log("done");
+  console.log("done downloading");
 });
 
-// instantiate from existing knox client
-var knoxClient = knox.createClient(options);
-var client = s3.fromKnox(knoxClient);
+// sync a directory to S3
+var params = {
+  localDir: "some/local/dir",
 
+  Bucket: "s3 bucket name",
+  Key: "some/remote/dir",
+  deleteRemoved: true, // default false, whether to remove s3 objects
+                       // that have no corresponding local file.
+  // other options supported by putObject, except Body and ContentLength.
+  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+};
+var uploader = client.uploadDir(params);
+uploader.on('error', function(err) {
+  console.error("unable to sync:", err.stack);
+});
+uploader.on('end', function() {
+  console.log("done uploading");
+});
+
+
+// instantiate from existing AWS.S3 object:
+var awsS3 = new AWS.S3(options);
+var client = s3.fromAwsSdkS3(awsS3);
 ```
 
-This module uses [knox](https://github.com/LearnBoost/knox) as a backend. If
-you want to do more low-level things, use knox for those things. It's ok to use
-both.
+## Testing
 
-Testing:
---------
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`
 
-History:
---------
+## History
 
 ### 0.3.1
 
