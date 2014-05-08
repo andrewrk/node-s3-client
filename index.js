@@ -1,15 +1,14 @@
 var AWS = require('aws-sdk');
 var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
-var S3Uploader = require('s3-upload-stream').Uploader;
 var findit = require('findit');
 var Pend = require('pend');
 var path = require('path');
+var crypto = require('crytpo');
 
 /*
 TODO:
  - ability to query progress
- - mtime checking is not good enough, we have to do etag
  - deleteObjects
  - uploadFile
  - downloadFile
@@ -161,7 +160,7 @@ function syncDir(self, params, directionIsToS3) {
     for (var relPath in s3Objects) {
       var s3Object = s3Objects[relPath];
       var localFileStat = localFiles[relPath];
-      if (!localFileStat || localFileStat.mtime.getTime() !== s3Object.LastModified.getTime()) {
+      if (!localFileStat || localFileStat.md5sum !== s3Object.ETag) {
         downloadOneFile(relPath);
       }
     }
@@ -209,7 +208,7 @@ function syncDir(self, params, directionIsToS3) {
     for (var relPath in localFiles) {
       var localFileStat = localFiles[relPath];
       var s3Object = s3Objects[relPath];
-      if (!s3Object || localFileStat.mtime.getTime() !== s3Object.LastModified.getTime()) {
+      if (!s3Object || localFileStat.md5sum !== s3Object.ETag) {
         uploadOneFile(relPath);
       }
     }
@@ -287,6 +286,7 @@ function syncDir(self, params, directionIsToS3) {
     var dirWithSlash = ensureSep(localDir);
     var walker = findit(dirWithSlash);
     var errorOccurred = false;
+    var pend = new Pend();
     walker.on('error', function(err) {
       if (errorOccurred) return;
       errorOccurred = true;
@@ -295,11 +295,26 @@ function syncDir(self, params, directionIsToS3) {
     });
     walker.on('file', function(file, stat) {
       var relPath = path.relative(localDir, file);
-      localFiles[relPath] = stat;
+      pend.go(function(cb) {
+        var inStream = fs.createReadStream(file);
+        var hash = crypto.createHash('md5');
+        inStream.on('error', function(err) {
+          if (errorOccurred) return;
+          errorOccurred = true;
+          walker.stop();
+          cb(err);
+        });
+        hash.on('data', function(digest) {
+          stat.md5sum = digest.toString('hex');
+          localFiles[relPath] = stat;
+          cb();
+        });
+        inStream.pipe(hash);
+      });
     });
     walker.on('end', function() {
       if (errorOccurred) return;
-      cb();
+      pend.wait(cb);
     });
   }
 }

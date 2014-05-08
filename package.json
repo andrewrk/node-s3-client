@@ -29,7 +29,6 @@
   },
   "dependencies": {
     "aws-sdk": "^2.0.0-rc.14",
-    "s3-upload-stream": "^0.2.0",
     "findit": "^1.2.0",
     "pend": "^1.1.1"
   }
