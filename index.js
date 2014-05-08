@@ -6,12 +6,19 @@ var Pend = require('pend');
 var path = require('path');
 var crypto = require('crytpo');
 
+// greater than 5 gigabytes and S3 requires a multipart upload. Multipart
+// uploads have a different ETag format. For multipart upload ETags it is
+// impossible to tell how te generate the ETag.
+// unfortunately we're still assuming that files <= 5 GB were not uploaded with
+// via multipart upload.
+var MAX_PUTOBJECT_SIZE = 5 * 1024 * 1024 * 1024;
+
 /*
 TODO:
  - ability to query progress
  - deleteObjects
- - uploadFile
  - downloadFile
+ - remove GroupPend
 */
 
 exports.createClient = function(options) {
@@ -34,8 +41,6 @@ function Client(options) {
   options = options || {};
   this.s3Pend = new Pend();
   this.s3Pend.max = options.maxAsyncS3 || Infinity;
-  this.fsPend = new Pend();
-  this.fsPend.max = options.maxAsyncFs || Infinity;
   this.s3RetryCount = options.s3RetryCount || 3;
   this.s3RetryDelay = options.s3RetryDelay || 1000;
   this.freePend = new Pend();
@@ -51,26 +56,98 @@ Client.prototype.deleteObjects = function(params) {
 };
 
 Client.prototype.uploadFile = function(params) {
+  var self = this;
   var uploader = new EventEmitter();
   var localFile = params.localFile;
-  var s3Uploader = new S3Uploader(this.connectionDetails, params, function(err, uploadStream) {
-    if (err) {
-      uploader.emit('error', err);
+  var localFileStat = params.localFileStat;
+
+  if (!localFileStat || !localFileStat.md5sum) {
+    doStatAndMd5Sum();
+  } else {
+    startPuttingObject();
+  }
+
+  return uploader;
+
+  function doStatAndMd5Sum() {
+    var md5sum;
+    var pend = new Pend();
+    pend.go(doStat);
+    pend.go(doMd5Sum);
+    pend.wait(function(err) {
+      if (err) {
+        uploader.emit('error', err);
+        return;
+      }
+      localFileStat.md5sum = md5sum;
+      startPuttingObject();
+    });
+
+    function doStat(cb) {
+      fs.stat(localFile, function(err, stat) {
+        if (!err) localFileStat = stat;
+        cb(err);
+      });
+    }
+
+    function doMd5Sum(cb) {
+      var inStream = fs.createReadStream(localFile);
+      inStream.on('error', function(err) {
+        cb(err);
+      });
+      var hash = crypto.createHash('md5');
+      hash.on('data', function(digest) {
+        md5sum = digest.toString('hex');
+        cb();
+      });
+      inStream.pipe(hash);
+    }
+  }
+
+  function startPuttingObject() {
+    if (localFileStat.size > MAX_PUTOBJECT_SIZE) {
+      uploader.emit('error', new Error("file exceeded max size for putObject"));
       return;
     }
-    var inputStream = fs.createReadStream(localFile);
-    inputStream.on('error', function(err) {
-      uploader.emit('error', err);
-    });
-    uploadStream.on('error', function(err) {
-      uploader.emit('error', err);
-    });
-    uploadStream.on('uploaded', function() {
+    doWithRetry(tryPuttingObject, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
+      if (err) {
+        uploader.emit('error', err);
+        return;
+      }
+
       uploader.emit('end');
     });
-    inputStream.pipe(uploadStream);
-  });
-  return uploader;
+  }
+
+  function tryPuttingObject(cb) {
+    self.s3Pend.go(function(pendCb) {
+      var inStream = fs.createReadStream(localFile);
+      var errorOccurred = false;
+      inStream.on('error', function(err) {
+        if (errorOccurred) return;
+        errorOccurred = true;
+        uploader.emit('error', err);
+      });
+      params.Body = inStream;
+      params.ContentMD5 = localFileStat.md5sum;
+      params.ContentLength = localFileStat.size;
+      self.s3.putObject(params, function(err, data) {
+        pendCb();
+        if (errorOccurred) return;
+        if (err) {
+          errorOccurred = true;
+          cb(err);
+          return;
+        }
+        if (data.ETag !== localFileStat.md5sum) {
+          errorOccurred = true;
+          cb(new Error("ETag does not match MD5 checksum"));
+          return;
+        }
+        cb(null, data);
+      });
+    });
+  }
 };
 
 Client.prototype.downloadFile = function(params) {
@@ -124,10 +201,10 @@ function syncDir(self, params, directionIsToS3) {
   };
   var s3Details = extend({}, params);
 
-  var groupPend = new GroupPend();
-  groupPend.go(self.freePend, findAllS3Objects);
-  groupPend.go(self.fsPend, findAllFiles);
-  groupPend.wait(compareResults);
+  var pend = new Pend();
+  pend.go(findAllS3Objects);
+  pend.go(findAllFiles);
+  pend.wait(compareResults);
 
   return ee;
 
@@ -183,7 +260,7 @@ function syncDir(self, params, directionIsToS3) {
   }
 
   function deleteRemovedLocalFiles(cb) {
-    var groupPend = new GroupPend();
+    var pend = new Pend();
     debugger;
     for (var relPath in localFiles) {
       var localFileStat = localFiles[relPath];
@@ -192,11 +269,11 @@ function syncDir(self, params, directionIsToS3) {
         deleteOneFile(relPath);
       }
     }
-    groupPend.wait(cb);
+    pend.wait(cb);
 
     function deleteOneFile(relPath) {
       var fullPath = path.join(localDir, relPath);
-      groupPend.go(self.fsPend, function(cb) {
+      pend.go(function(cb) {
         fs.unlink(cb);
       });
     }
@@ -214,11 +291,12 @@ function syncDir(self, params, directionIsToS3) {
     }
     pend.wait(cb);
 
-    function uploadOneFile(relPath) {
+    function uploadOneFile(relPath, localFileStat) {
       var fullPath = path.join(localDir, relPath);
       pend.go(function(cb) {
         s3Details.Key = relPath;
         s3Details.localFile = fullPath;
+        s3Details.localFileStat = localFileStat;
         var uploader = self.uploadFile(s3Details);
         uploader.on('error', function(err) {
           cb(err);
@@ -260,9 +338,10 @@ function syncDir(self, params, directionIsToS3) {
     doWithRetry(listObjects, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
       if (err) return cb(err);
 
-      data.Contents.forEach(function(object) {
+      for (var i = 0; i < data.Contents.length; i += 1) {
+        var object = data.Contents[i];
         s3Objects[object.Key] = object;
-      });
+      }
 
       if (data.IsTruncated) {
         findS3ObjectsParams.Marker = data.NextMarker;
@@ -273,7 +352,7 @@ function syncDir(self, params, directionIsToS3) {
     });
 
     function listObjects(cb) {
-      groupPend.go(self.s3Pend, function(pendCb) {
+      self.s3Pend.go(function(pendCb) {
         self.s3.listObjects(findS3ObjectsParams, function(err, data) {
           pendCb();
           cb(err, data);
@@ -295,6 +374,11 @@ function syncDir(self, params, directionIsToS3) {
     });
     walker.on('file', function(file, stat) {
       var relPath = path.relative(localDir, file);
+      if (stat.size > MAX_PUTOBJECT_SIZE) {
+        stat.md5sum = ""; // ETag has different format for files this big
+        localFiles[relPath] = stat;
+        return;
+      }
       pend.go(function(cb) {
         var inStream = fs.createReadStream(file);
         var hash = crypto.createHash('md5');
