@@ -18,7 +18,6 @@ TODO:
  - ability to query progress
  - deleteObjects
  - downloadFile
- - remove GroupPend
 */
 
 exports.createClient = function(options) {
@@ -402,26 +401,6 @@ function syncDir(self, params, directionIsToS3) {
     });
   }
 }
-
-function GroupPend() {
-  this.pend = new Pend();
-}
-
-GroupPend.prototype.go = function(pend, fn) {
-  var innerPend = this.pend;
-  pend.go(function(cb) {
-    innerPend.go(function(innerCb) {
-      fn(function(err) {
-        innerCb(err);
-        cb(err);
-      });
-    });
-  });
-};
-
-GroupPend.prototype.wait = function(fn) {
-  this.pend.wait(fn);
-};
 
 function ensureSep(dir) {
   return (dir[dir.length - 1] === path.sep) ? dir : (dir + path.sep);
