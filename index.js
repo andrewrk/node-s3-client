@@ -5,6 +5,7 @@ var findit = require('findit');
 var Pend = require('pend');
 var path = require('path');
 var crypto = require('crytpo');
+var StreamCounter = require('stream-counter');
 
 // greater than 5 gigabytes and S3 requires a multipart upload. Multipart
 // uploads have a different ETag format. For multipart upload ETags it is
@@ -94,12 +95,17 @@ Client.prototype.deleteObjects = function(params) {
 Client.prototype.uploadFile = function(params) {
   var self = this;
   var uploader = new EventEmitter();
+  uploader.progressMd5Amount = 0;
+  uploader.progressUploadAmount = 0;
+  uploader.progressTotal = 1;
+
   var localFile = params.localFile;
   var localFileStat = params.localFileStat;
 
   if (!localFileStat || !localFileStat.md5sum) {
     doStatAndMd5Sum();
   } else {
+    uploader.progressTotal = localFileStat.size;
     startPuttingObject();
   }
 
@@ -121,13 +127,17 @@ Client.prototype.uploadFile = function(params) {
 
     function doStat(cb) {
       fs.stat(localFile, function(err, stat) {
-        if (!err) localFileStat = stat;
+        if (!err) {
+          localFileStat = stat;
+          uploader.progressTotal = stat.size;
+        }
         cb(err);
       });
     }
 
     function doMd5Sum(cb) {
       var inStream = fs.createReadStream(localFile);
+      var counter = new StreamCounter();
       inStream.on('error', function(err) {
         cb(err);
       });
@@ -136,7 +146,12 @@ Client.prototype.uploadFile = function(params) {
         md5sum = digest.toString('hex');
         cb();
       });
+      counter.on('progress', function() {
+        uploader.progressMd5Amount = counter.bytes;
+        uploader.emit('progress');
+      });
       inStream.pipe(hash);
+      inStream.pipe(counter);
     }
   }
 
@@ -167,6 +182,13 @@ Client.prototype.uploadFile = function(params) {
       params.Body = inStream;
       params.ContentMD5 = localFileStat.md5sum;
       params.ContentLength = localFileStat.size;
+      uploader.progressUploadAmount = 0;
+      var counter = new StreamCounter();
+      counter.on('progress', function() {
+        uploader.progressUploadAmount = counter.bytes;
+        uploader.emit('progress');
+      });
+      inStream.pipe(counter);
       self.s3.putObject(params, function(err, data) {
         pendCb();
         if (errorOccurred) return;

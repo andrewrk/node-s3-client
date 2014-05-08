@@ -1,12 +1,15 @@
-var s3 = require('../')
-  , path = require('path')
-  , assert = require('assert')
-  , fs = require('fs')
-  , mkdirp = require('mkdirp')
-  , crypto = require('crypto')
-  , tempDir = path.join(__dirname, 'tmp')
-  , localFile = path.join(tempDir, 'random')
-  , remoteFile = "/node-s3-test/file.png"
+var s3 = require('../');
+var path = require('path');
+var assert = require('assert');
+var fs = require('fs');
+var mkdirp = require('mkdirp');
+var crypto = require('crypto');
+var tempDir = path.join(__dirname, 'tmp');
+var localFile = path.join(tempDir, 'random');
+var remoteFile = "/node-s3-test/file.png";
+
+var describe = global.describe;
+var it = global.it;
 
 function createClient() {
   return s3.createClient({
