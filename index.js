@@ -13,11 +13,13 @@ var crypto = require('crytpo');
 // via multipart upload.
 var MAX_PUTOBJECT_SIZE = 5 * 1024 * 1024 * 1024;
 
+var MAX_DELETE_COUNT = 1000;
+
 /*
 TODO:
+ - test debugger areas
+ - write tests
  - ability to query progress
- - deleteObjects
- - downloadFile
 */
 
 exports.createClient = function(options) {
@@ -46,12 +48,47 @@ function Client(options) {
 }
 
 Client.prototype.deleteObjects = function(params) {
-  var deleter = new EventEmitter();
+  var self = this;
+  var ee = new EventEmitter();
 
-  // TODO handle the 1000 limit
-  // TODO handle retries
+  var targetObjects = params.Delete.Objects;
+  var slices = chunkArray(targetObjects, MAX_DELETE_COUNT);
+  var errorOccurred = false;
+  var errors = [];
+  var pend = new Pend();
 
-  return deleter;
+  slices.forEach(uploadSlice);
+  pend.wait(function(err) {
+    if (err) {
+      ee.emit('error', err);
+      return;
+    }
+    ee.emit('end', errors);
+  });
+  return ee;
+
+  function uploadSlice(slice) {
+    pend.go(function(cb) {
+      doWithRetry(tryDeletingObjects, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
+        if (err) {
+          cb(err);
+        } else {
+          errors = errors.concat(data.Errors);
+          cb();
+        }
+      });
+    });
+
+    function tryDeletingObjects(cb) {
+      self.s3Pend.go(function(pendCb) {
+        params.Delete.Objects = slice;
+        self.s3.deleteObjects(params, function(err, data) {
+          pendCb();
+          cb(err, data);
+        });
+      });
+    }
+  }
 };
 
 Client.prototype.uploadFile = function(params) {
@@ -433,3 +470,12 @@ function extend(target, source) {
   }
   return target;
 }
+
+function chunkArray(array, maxLength) {
+  var slices = [array];
+  while (slices[slices.length - 1].length > maxLength) {
+    slices.push(slices[slices.length - 1].splice(maxLength));
+  }
+  return slices;
+}
+
