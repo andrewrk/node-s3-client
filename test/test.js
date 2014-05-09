@@ -11,12 +11,14 @@ var remoteFile = "/node-s3-test/file.png";
 var describe = global.describe;
 var it = global.it;
 
+var s3Bucket = process.env.S3_BUCKET;
+
 function createClient() {
   return s3.createClient({
-    secure: false,
-    key: process.env.S3_KEY,
-    secret: process.env.S3_SECRET,
-    bucket: process.env.S3_BUCKET
+    s3Options: {
+      accessKeyId: process.env.S3_KEY,
+      secretAccessKey: process.env.S3_SECRET,
+    },
   });
 }
 
@@ -47,11 +49,20 @@ describe("s3", function () {
       if (err) return done(err);
       hexdigest = _hexdigest;
       var client = createClient();
-      var uploader = client.upload(localFile, remoteFile);
+      var params = {
+        localFile: localFile,
+        s3Params: {
+          Key: remoteFile,
+          Bucket: s3Bucket,
+        },
+      };
+      var uploader = client.uploadFile(params);
       uploader.on('error', done);
       var progress = 0;
       var progressEventCount = 0;
-      uploader.on('progress', function(amountDone, amountTotal) {
+      uploader.on('progress', function() {
+        var amountDone = uploader.progressUploadAmount;
+        var amountTotal = uploader.progressTotal;
         var newProgress = amountDone / amountTotal;
         progressEventCount += 1;
         assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);

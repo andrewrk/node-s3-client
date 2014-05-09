@@ -16,21 +16,27 @@
 var s3 = require('s3');
 
 var client = s3.createClient({
-  accessKeyId: "your s3 key",
-  secretAccessKey: "your s3 secret",
-  maxRetries: 3, // optional
-  // any other options are passed to new AWS.S3()
-  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
+  maxAsyncS3: Infinity,
+  s3RetryCount: 3,
+  s3RetryDelay: 1000,
+  s3Options: {
+    accessKeyId: "your s3 key",
+    secretAccessKey: "your s3 secret",
+    // any other options are passed to new AWS.S3()
+    // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
+  },
 });
 
 // upload a file to s3
 var params = {
   localFile: "some/local/file",
 
-  Bucket: "s3 bucket name",
-  Key: "some/remote/file",
-  // other options supported by putObject, except Body and ContentLength.
-  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+  s3Params: {
+    Bucket: "s3 bucket name",
+    Key: "some/remote/file",
+    // other options supported by putObject, except Body and ContentLength.
+    // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+  },
 };
 var uploader = client.uploadFile(params);
 uploader.on('error', function(err) {
@@ -47,10 +53,12 @@ uploader.on('end', function() {
 var params = {
   localFile: "some/local/file",
 
-  Bucket: "s3 bucket name",
-  Key: "some/remote/file",
-  // other options supported by getObject
-  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
+  s3Params: {
+    Bucket: "s3 bucket name",
+    Key: "some/remote/file",
+    // other options supported by getObject
+    // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
+  },
 };
 var downloader = client.downloadFile(params);
 downloader.on('error', function(err) {
@@ -63,13 +71,15 @@ downloader.on('end', function() {
 // sync a directory to S3
 var params = {
   localDir: "some/local/dir",
-
-  Bucket: "s3 bucket name",
-  Key: "some/remote/dir",
   deleteRemoved: true, // default false, whether to remove s3 objects
                        // that have no corresponding local file.
-  // other options supported by putObject, except Body and ContentLength.
-  // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+
+  s3Params: {
+    Bucket: "s3 bucket name",
+    Key: "some/remote/dir",
+    // other options supported by putObject, except Body and ContentLength.
+    // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+  },
 };
 var uploader = client.uploadDir(params);
 uploader.on('error', function(err) {
@@ -81,8 +91,11 @@ uploader.on('end', function() {
 
 
 // instantiate from existing AWS.S3 object:
-var awsS3 = new AWS.S3(options);
-var client = s3.fromAwsSdkS3(awsS3);
+var awsS3Client = new AWS.S3(s3Options);
+var options = {
+  s3Client: awsS3Client,
+};
+var client = s3.fromAwsSdkS3(options);
 ```
 
 ## Testing

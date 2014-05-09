@@ -4,7 +4,7 @@ var fs = require('fs');
 var findit = require('findit');
 var Pend = require('pend');
 var path = require('path');
-var crypto = require('crytpo');
+var crypto = require('crypto');
 var StreamCounter = require('stream-counter');
 
 // greater than 5 gigabytes and S3 requires a multipart upload. Multipart
@@ -21,26 +21,18 @@ TODO:
  - test debugger areas
  - write tests
  - ability to query progress
+ - don't clobber input params
 */
 
 exports.createClient = function(options) {
-  var client = new Client(options);
-  client.s3 = new AWS.S3(options);
-  client.connectionDetails = {s3Client: client.s3};
-  return client;
+  return new Client(options);
 };
-
-exports.fromAwsSdkS3 = function(s3, options) {
-  var client = new Client(options);
-  client.s3 = s3;
-  client.connectionDetails = {s3Client: client.s3};
-  return client;
-}
 
 exports.Client = Client;
 
 function Client(options) {
   options = options || {};
+  this.s3 = options.s3Client || new AWS.S3(options.s3Options);
   this.s3Pend = new Pend();
   this.s3Pend.max = options.maxAsyncS3 || Infinity;
   this.s3RetryCount = options.s3RetryCount || 3;
@@ -101,6 +93,7 @@ Client.prototype.uploadFile = function(params) {
 
   var localFile = params.localFile;
   var localFileStat = params.localFileStat;
+  var s3Params = extend({}, params.s3Params);
 
   if (!localFileStat || !localFileStat.md5sum) {
     doStatAndMd5Sum();
@@ -143,7 +136,7 @@ Client.prototype.uploadFile = function(params) {
       });
       var hash = crypto.createHash('md5');
       hash.on('data', function(digest) {
-        md5sum = digest.toString('hex');
+        md5sum = digest;
         cb();
       });
       counter.on('progress', function() {
@@ -179,9 +172,9 @@ Client.prototype.uploadFile = function(params) {
         errorOccurred = true;
         uploader.emit('error', err);
       });
-      params.Body = inStream;
-      params.ContentMD5 = localFileStat.md5sum;
-      params.ContentLength = localFileStat.size;
+      s3Params.Body = inStream;
+      s3Params.ContentMD5 = localFileStat.md5sum.toString('base64');
+      s3Params.ContentLength = localFileStat.size;
       uploader.progressUploadAmount = 0;
       var counter = new StreamCounter();
       counter.on('progress', function() {
@@ -189,7 +182,7 @@ Client.prototype.uploadFile = function(params) {
         uploader.emit('progress');
       });
       inStream.pipe(counter);
-      self.s3.putObject(params, function(err, data) {
+      self.s3.putObject(s3Params, function(err, data) {
         pendCb();
         if (errorOccurred) return;
         if (err) {
@@ -197,7 +190,7 @@ Client.prototype.uploadFile = function(params) {
           cb(err);
           return;
         }
-        if (data.ETag !== localFileStat.md5sum) {
+        if (!compareETag(data.ETag, localFileStat.md5sum)) {
           errorOccurred = true;
           cb(new Error("ETag does not match MD5 checksum"));
           return;
@@ -295,7 +288,7 @@ function syncDir(self, params, directionIsToS3) {
     for (var relPath in s3Objects) {
       var s3Object = s3Objects[relPath];
       var localFileStat = localFiles[relPath];
-      if (!localFileStat || localFileStat.md5sum !== s3Object.ETag) {
+      if (!localFileStat || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
         downloadOneFile(relPath);
       }
     }
@@ -343,7 +336,7 @@ function syncDir(self, params, directionIsToS3) {
     for (var relPath in localFiles) {
       var localFileStat = localFiles[relPath];
       var s3Object = s3Objects[relPath];
-      if (!s3Object || localFileStat.md5sum !== s3Object.ETag) {
+      if (!s3Object || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
         uploadOneFile(relPath);
       }
     }
@@ -433,7 +426,7 @@ function syncDir(self, params, directionIsToS3) {
     walker.on('file', function(file, stat) {
       var relPath = path.relative(localDir, file);
       if (stat.size > MAX_PUTOBJECT_SIZE) {
-        stat.md5sum = ""; // ETag has different format for files this big
+        stat.md5sum = new Buffer(0); // ETag has different format for files this big
         localFiles[relPath] = stat;
         return;
       }
@@ -447,7 +440,7 @@ function syncDir(self, params, directionIsToS3) {
           cb(err);
         });
         hash.on('data', function(digest) {
-          stat.md5sum = digest.toString('hex');
+          stat.md5sum = digest;
           localFiles[relPath] = stat;
           cb();
         });
@@ -501,3 +494,8 @@ function chunkArray(array, maxLength) {
   return slices;
 }
 
+function compareETag(eTag, md5Buffer) {
+  eTag = eTag.replace(/^\s*'?\s*"?\s*(.*?)\s*"?\s*'?\s*$/, "$1");
+  var hex = md5Buffer.toString('hex');
+  return eTag === hex;
+}
