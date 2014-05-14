@@ -238,8 +238,7 @@ Client.prototype.downloadFile = function(params) {
 
     request.on('httpHeaders', function(statusCode, headers, resp) {
       if (statusCode < 300) {
-        debugger;
-        var contentLength = headers['content-length'];
+        var contentLength = parseInt(headers['content-length'], 10);
         downloader.progressTotal = contentLength;
       }
     });
