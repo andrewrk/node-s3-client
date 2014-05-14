@@ -6,7 +6,9 @@ var mkdirp = require('mkdirp');
 var crypto = require('crypto');
 var tempDir = path.join(__dirname, 'tmp');
 var localFile = path.join(tempDir, 'random');
-var remoteFile = "/node-s3-test/file.png";
+var remoteRoot = "/node-s3-test/";
+var remoteFile = path.join(remoteRoot, "file.png");
+var remoteDir = path.join(remoteRoot, "dir1");
 
 var describe = global.describe;
 var it = global.it;
@@ -22,7 +24,7 @@ function createClient() {
   });
 }
 
-function createBigFile(cb) {
+function createBigFile(size, cb) {
   mkdirp(tempDir, function(err) {
     if (err) return cb(err);
     var md5sum = crypto.createHash('md5');
@@ -34,7 +36,7 @@ function createBigFile(cb) {
       cb(null, md5sum.digest('hex'));
     });
     var str = "abcdefghijklmnopqrstuvwxyz";
-    for (var i = 0; i < 4000; ++i) {
+    for (var i = 0; i < size; ++i) {
       out.write(str);
       md5sum.update(str);
     }
@@ -45,7 +47,7 @@ function createBigFile(cb) {
 describe("s3", function () {
   var hexdigest;
   it("uploads", function(done) {
-    createBigFile(function (err, _hexdigest) {
+    createBigFile(4000, function (err, _hexdigest) {
       if (err) return done(err);
       hexdigest = _hexdigest;
       var client = createClient();
@@ -119,6 +121,19 @@ describe("s3", function () {
     });
   });
 
+  it("lists objects", function(done) {
+    var params = {
+      Bucket: s3Bucket,
+      Prefix: remoteRoot,
+    };
+    var client = createClient();
+    var finder = client.listObjects(params);
+    finder.on('end', function(data) {
+      assert.strictEqual(data.Contents.length, 1);
+      done();
+    });
+  });
+
   it("deletes an object", function(done) {
       var client = createClient();
       var params = {
@@ -126,7 +141,7 @@ describe("s3", function () {
         Delete: {
           Objects: [
             {
-              Key: remoteFile,
+              Key: remoteDir,
             },
           ],
         },
@@ -138,6 +153,22 @@ describe("s3", function () {
   });
 
   it("uploads a folder");
+  /*
+  it("uploads a folder", function(done) {
+    var client = createClient();
+    var params = {
+      localDir: path.join(__dirname, "dir1"),
+      s3Params: {
+        Key: remoteFile,
+        Bucket: s3Bucket,
+      },
+    };
+    var uploader = client.uploadDir(params);
+    uploader.on('end', function() {
+      done();
+    });
+  });
+  */
 
   it("downloads a folder");
 

@@ -264,6 +264,51 @@ Client.prototype.downloadFile = function(params) {
   }
 };
 
+Client.prototype.listObjects = function(params) {
+  var self = this;
+  var ee = new EventEmitter();
+  var s3Details = extend({}, params);
+  var allContents = [];
+
+  ee.progressAmount = 0;
+  findAllS3Objects(function(err, data) {
+    if (err) {
+      ee.emit('error', err);
+      return;
+    }
+    data.Contents = allContents;
+    ee.emit('end', data);
+  });
+
+  return ee;
+
+  function findAllS3Objects(cb) {
+    doWithRetry(listObjects, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
+      if (err) return cb(err);
+
+      allContents = allContents.concat(data.Contents);
+      ee.progressAmount += 1;
+      ee.emit('progress');
+
+      if (data.IsTruncated) {
+        s3Details.Marker = data.NextMarker;
+        findAllS3Objects(cb);
+      } else {
+        cb(null, data);
+      }
+    });
+
+    function listObjects(cb) {
+      self.s3Pend.go(function(pendCb) {
+        self.s3.listObjects(s3Details, function(err, data) {
+          pendCb();
+          cb(err, data);
+        });
+      });
+    }
+  }
+};
+
 /* params:
  * - Bucket (required)
  * - Key (required)
@@ -272,11 +317,11 @@ Client.prototype.downloadFile = function(params) {
  * - localDir - path on local file system to sync
  */
 Client.prototype.uploadDir = function(params) {
-  syncDir(this, params, true);
+  return syncDir(this, params, true);
 };
 
 Client.prototype.downloadDir = function(params) {
-  syncDir(this, params, false);
+  return syncDir(this, params, false);
 };
 
 function syncDir(self, params, directionIsToS3) {
@@ -287,14 +332,14 @@ function syncDir(self, params, directionIsToS3) {
   var s3Objects = {};
   var deleteRemoved = params.deleteRemoved === true;
   var findS3ObjectsParams = {
-    Bucket: params.Bucket,
-    Delimiter: params.Delimiter || '/',
+    Bucket: params.s3Params.Bucket,
+    Delimiter: params.s3Params.Delimiter || '/',
     EncodingType: 'url',
     Marker: null,
     MaxKeys: null,
-    Prefix: params.Key,
+    Prefix: params.s3Params.Key,
   };
-  var s3Details = extend({}, params);
+  var s3Details = extend({}, params.s3Params);
 
   var pend = new Pend();
   pend.go(findAllS3Objects);
@@ -343,6 +388,7 @@ function syncDir(self, params, directionIsToS3) {
       pend.go(function(cb) {
         s3Details.Key = relPath;
         s3Details.localFile = fullPath;
+        // TODO
         var downloader = self.downloadFile(s3Details);
         downloader.on('error', function(err) {
           cb(err);
@@ -430,30 +476,16 @@ function syncDir(self, params, directionIsToS3) {
   }
 
   function findAllS3Objects(cb) {
-    doWithRetry(listObjects, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
-      if (err) return cb(err);
-
-      for (var i = 0; i < data.Contents.length; i += 1) {
-        var object = data.Contents[i];
-        s3Objects[object.Key] = object;
-      }
-
-      if (data.IsTruncated) {
-        findS3ObjectsParams.Marker = data.NextMarker;
-        findAllS3Objects(cb);
-      } else {
-        cb();
-      }
+    var finder = self.listObjects(findS3ObjectsParams);
+    finder.on('error', function(err) {
+      cb(err);
     });
-
-    function listObjects(cb) {
-      self.s3Pend.go(function(pendCb) {
-        self.s3.listObjects(findS3ObjectsParams, function(err, data) {
-          pendCb();
-          cb(err, data);
-        });
+    finder.on('end', function(data) {
+      data.Contents.forEach(function(object) {
+        s3Objects[object.Key] = object;
       });
-    }
+      cb();
+    });
   }
 
   function findAllFiles(cb) {
