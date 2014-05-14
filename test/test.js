@@ -118,4 +118,27 @@ describe("s3", function () {
       });
     });
   });
+
+  it("deletes an object", function(done) {
+      var client = createClient();
+      var params = {
+        Bucket: s3Bucket,
+        Delete: {
+          Objects: [
+            {
+              Key: remoteFile,
+            },
+          ],
+        },
+      };
+      var deleter = client.deleteObjects(params);
+      deleter.on('end', function() {
+        done();
+      });
+  });
+
+  it("uploads a folder");
+
+  it("downloads a folder");
+
 });
