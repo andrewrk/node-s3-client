@@ -76,15 +76,25 @@ describe("s3", function () {
       });
     });
   });
-  it("dowloads", function(done) {
+
+  it("downloads", function(done) {
     fs.unlink(localFile, function(err) {
       if (err) return done(err);
       var client = createClient();
-      var downloader = client.download(remoteFile, localFile);
+      var params = {
+        localFile: localFile,
+        s3Params: {
+          Key: remoteFile,
+          Bucket: s3Bucket,
+        },
+      };
+      var downloader = client.downloadFile(params);
       downloader.on('error', done);
       var progress = 0;
       var progressEventCount = 0;
-      downloader.on('progress', function(amountDone, amountTotal) {
+      downloader.on('progress', function() {
+        var amountDone = downloader.progressAmount;
+        var amountTotal = downloader.progressTotal;
         var newProgress = amountDone / amountTotal;
         progressEventCount += 1;
         assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);

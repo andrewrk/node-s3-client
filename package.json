@@ -28,9 +28,10 @@
     "mkdirp": "^0.5.0"
   },
   "dependencies": {
-    "aws-sdk": "^2.0.0-rc.14",
+    "aws-sdk": "^2.0.0-rc.16",
     "findit": "^1.2.0",
     "pend": "^1.1.1",
-    "stream-counter": "^1.0.0"
+    "stream-counter": "^1.0.0",
+    "mkdirp": "^0.5.0"
   }
 }

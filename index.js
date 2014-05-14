@@ -6,6 +6,7 @@ var Pend = require('pend');
 var path = require('path');
 var crypto = require('crypto');
 var StreamCounter = require('stream-counter');
+var mkdirp = require('mkdirp');
 
 // greater than 5 gigabytes and S3 requires a multipart upload. Multipart
 // uploads have a different ETag format. For multipart upload ETags it is
@@ -202,22 +203,66 @@ Client.prototype.uploadFile = function(params) {
 };
 
 Client.prototype.downloadFile = function(params) {
+  var self = this;
   var downloader = new EventEmitter();
   var localFile = params.localFile;
-  var response = this.s3.getObject(params).createReadStream();
-  var outStream = fs.createWriteStream(localFile);
+  var s3Params = params.s3Params;
 
-  response.on('error', function(err) {
-    downloader.emit('error', err);
+  var dirPath = path.basename(localFile);
+  mkdirp(dirPath, function(err) {
+    if (err) {
+      downloader.emit('error', err);
+      return;
+    }
+
+    doWithRetry(doTheDownload, self.s3RetryCount, self.s3RetryDelay, function(err) {
+      if (err) {
+        downloader.emit('error', err);
+        return;
+      }
+      downloader.emit('end');
+    });
   });
-
-  outStream.on('error', function(err) {
-    downloader.emit('error', err);
-  });
-
-  response.pipe(outStream);
 
   return downloader;
+
+  function doTheDownload(cb) {
+    var request = self.s3.getObject(s3Params);
+    var response = request.createReadStream();
+    var outStream = fs.createWriteStream(localFile);
+    var counter = new StreamCounter();
+    var errorOccurred = false;
+
+    response.on('error', handleError);
+    outStream.on('error', handleError);
+
+    request.on('httpHeaders', function(statusCode, headers, resp) {
+      if (statusCode < 300) {
+        debugger;
+        var contentLength = headers['content-length'];
+        downloader.progressTotal = contentLength;
+      }
+    });
+
+    counter.on('progress', function() {
+      downloader.progressAmount = counter.bytes;
+      downloader.emit('progress');
+    });
+
+    outStream.on('close', function() {
+      if (errorOccurred) return;
+      cb();
+    });
+
+    response.pipe(counter);
+    response.pipe(outStream);
+
+    function handleError(err) {
+      if (errorOccurred) return;
+      errorOccurred = true;
+      cb(err);
+    }
+  }
 };
 
 /* params:
