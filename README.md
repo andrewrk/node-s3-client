@@ -7,8 +7,9 @@
  * Ability to set a limit on the maximum parallelization of S3 requests.
    Retries get pushed to the end of the paralellization queue.
  * Ability to sync a dir to and from S3.
- * Limited to files less than 5GB.
  * Progress reporting.
+ * Limited to files less than 5GB.
+ * Limited to objects which were not uploaded using a multipart request.
 
 ## Synopsis
 
@@ -83,6 +84,9 @@ var downloader = client.downloadFile(params);
 downloader.on('error', function(err) {
   console.error("unable to download:", err.stack);
 });
+downloader.on('progress', function() {
+  console.log("progress", downloader.progressAmount, downloader.progressTotal);
+});
 downloader.on('end', function() {
   console.log("done downloading");
 });
@@ -98,7 +102,7 @@ var params = {
 
   s3Params: {
     Bucket: "s3 bucket name",
-    Key: "some/remote/dir",
+    Prefix: "some/remote/dir/",
     // other options supported by putObject, except Body and ContentLength.
     // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
   },
@@ -141,7 +145,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-pro
    `fs.stat` and the md5sum of the file, you can provide it here. Otherwise it
    will be computed for you.
 
-The difference between using AWS SDK `putObject` and this one is:
+The difference between using AWS SDK `putObject` and this one:
 
  * This works with files, not streams or buffers.
  * If the reported MD5 upon upload completion does not match, it retries.
@@ -171,7 +175,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-pro
  * `localFile` - the destination path on disk to write the s3 object into
  * `s3Params`: params to pass to AWS SDK `getObject`.
 
-The difference between using AWS SDK `getObject` and this one is:
+The difference between using AWS SDK `getObject` and this one:
 
  * This works with a destination file, not a stream or a buffer.
  * (TODO) If the reported MD5 upon download completion does not match, it retries.
@@ -187,7 +191,49 @@ And these events:
 
  * `'error' (err)`
  * `'end'` - emitted when the file is uploaded successfully
- * `'progress'` - emitted when `progressAmount` and `progressTotal` properties change.
+ * `'progress'` - emitted when `progressAmount` and `progressTotal`
+   properties change.
+
+### client.listObjects(params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-property
+
+`params`:
+
+ * `recursive` - `true` or `false` whether or not you want to recurse
+   into directories.
+ * `s3Params` - params to pass to AWS SDK 'listObjects`.
+
+Note that if you set `Delimiter` in `s3Params` then you will get a list of
+objects and folders in the directory you specify. You probably do not want to
+set `recursive` to `true` at the same time as specifying a `Delimiter` because
+this will cause a request per directory. If you want all objects that share a
+prefix, leave the `Delimiter` option `null` or `undefined`.
+
+The difference between using AWS SDK `listObjects` and this one:
+
+ * Retry based on the client's retry settings.
+ * Supports recursive directory listing.
+ * Make multiple requests if the number of objects to list is greater than 1000.
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `objectsFound`
+ * `dirsFound`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when the file is uploaded successfully
+ * `'data' (data)` - emitted when a batch of objects are found. This is
+   the same as the `data` object in AWS SDK.
+ * `'progress'` - emitted when `progressAmount`, `objectsFound`, and
+   `dirsFound` properties change.
+
+And these methods:
+
+ * `abort()` - call this to stop the find operation.
 
 ### client.deleteObjects(s3Params)
 

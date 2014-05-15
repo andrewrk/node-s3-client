@@ -311,7 +311,7 @@ Client.prototype.listObjects = function(params) {
       ee.objectsFound += data.Contents.length;
       ee.dirsFound += data.CommonPrefixes.length;
       ee.emit('progress');
-      ee.emit('objects', data);
+      ee.emit('data', data);
 
       var pend = new Pend();
 
@@ -394,8 +394,8 @@ Client.prototype.deleteDir = function(s3Params) {
   finder.on('error', function(err) {
     ee.emit('error', err);
   });
-  finder.on('objects', function(objects) {
-    ee.progressTotal += objects.length;
+  finder.on('data', function(objects) {
+    ee.progressTotal += objects.Contents.length;
     ee.emit('progress');
     if (objects.Contents.length > 0) {
       pend.go(deleteThem);
@@ -416,7 +416,7 @@ Client.prototype.deleteDir = function(s3Params) {
         ee.emit('error', err);
       });
       deleter.on('end', function() {
-        ee.progressAmount += objects.length;
+        ee.progressAmount += objects.Contents.length;
         ee.emit('progress');
         cb();
       });
@@ -616,7 +616,7 @@ function syncDir(self, params, directionIsToS3) {
     finder.on('error', function(err) {
       cb(err);
     });
-    finder.on('objects', function(data) {
+    finder.on('data', function(data) {
       data.Contents.forEach(function(object) {
         var key = object.Key.substring(prefix.length);
         s3Objects[key] = object;

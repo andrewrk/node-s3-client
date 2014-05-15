@@ -146,7 +146,7 @@ describe("s3", function () {
     var client = createClient();
     var finder = client.listObjects(params);
     var found = false;
-    finder.on('objects', function(data) {
+    finder.on('data', function(data) {
       assert.strictEqual(data.Contents.length, 1);
       found = true;
     });
@@ -249,7 +249,7 @@ describe("s3", function () {
     var client = createClient();
     var finder = client.listObjects(params);
     var found = false;
-    finder.on('objects', function(data) {
+    finder.on('data', function(data) {
       assert.strictEqual(data.Contents.length, 2);
       assert.strictEqual(data.CommonPrefixes.length, 0);
       found = true;
