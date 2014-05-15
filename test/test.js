@@ -291,6 +291,7 @@ describe("s3", function () {
           if (err) throw err;
           assert.strictEqual(fs.existsSync(path.join(localTmpDir, "file2")), false);
           assert.strictEqual(fs.existsSync(path.join(localTmpDir, "inner2/b")), false);
+          assert.strictEqual(fs.existsSync(path.join(localTmpDir, "inner2")), false);
           done();
         });
       });
@@ -308,8 +309,6 @@ describe("s3", function () {
       done();
     });
   });
-
-  it("downloadDir with deleteRemoved should delete local folders");
 });
 
 function assertFilesMd5(list, cb) {

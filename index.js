@@ -1,6 +1,7 @@
 var AWS = require('aws-sdk');
 var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
+var rimraf = require('rimraf');
 var findit = require('findit');
 var Pend = require('pend');
 var path = require('path');
@@ -424,7 +425,9 @@ function syncDir(self, params, directionIsToS3) {
 
   var localDir = params.localDir;
   var localFiles = {};
+  var localDirs = {};
   var s3Objects = {};
+  var s3Dirs = {};
   var deleteRemoved = params.deleteRemoved === true;
   var prefix = ensureSep(params.s3Params.Prefix);
   var bucket = params.s3Params.Bucket;
@@ -505,19 +508,42 @@ function syncDir(self, params, directionIsToS3) {
 
   function deleteRemovedLocalFiles(cb) {
     var pend = new Pend();
-    for (var relPath in localFiles) {
+    var relPath;
+    for (relPath in localFiles) {
       var localFileStat = localFiles[relPath];
       var s3Object = s3Objects[relPath];
       if (!s3Object) {
         deleteOneFile(relPath);
       }
     }
+    for (relPath in localDirs) {
+      var localDirStat = localDirs[relPath];
+      var s3Dir = s3Dirs[relPath];
+      if (!s3Dir) {
+        deleteOneDir(relPath);
+      }
+    }
     pend.wait(cb);
+
+    function deleteOneDir(relPath) {
+      var fullPath = path.join(localDir, relPath);
+      pend.go(function(cb) {
+        rimraf(fullPath, function(err) {
+          // ignore ENOENT errors
+          if (err && err.code === 'ENOENT') err = null;
+          cb(err);
+        });
+      });
+    }
 
     function deleteOneFile(relPath) {
       var fullPath = path.join(localDir, relPath);
       pend.go(function(cb) {
-        fs.unlink(fullPath, cb);
+        fs.unlink(fullPath, function(err) {
+          // ignore ENOENT errors
+          if (err && err.code === 'ENOENT') err = null;
+          cb(err);
+        });
       });
     }
   }
@@ -584,6 +610,9 @@ function syncDir(self, params, directionIsToS3) {
       data.Contents.forEach(function(object) {
         var key = object.Key.substring(prefix.length);
         s3Objects[key] = object;
+        var dirname = path.dirname(key);
+        if (dirname === '.') return;
+        s3Dirs[path.dirname(key)] = true;
       });
     });
     finder.on('end', function() {
@@ -601,6 +630,11 @@ function syncDir(self, params, directionIsToS3) {
       errorOccurred = true;
       walker.stop();
       cb(err);
+    });
+    walker.on('directory', function(dir, stat) {
+      var relPath = path.relative(localDir, dir);
+      if (relPath === '') return;
+      localDirs[relPath] = stat;
     });
     walker.on('file', function(file, stat) {
       var relPath = path.relative(localDir, file);
