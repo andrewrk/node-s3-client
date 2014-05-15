@@ -144,8 +144,13 @@ describe("s3", function () {
     };
     var client = createClient();
     var finder = client.listObjects(params);
-    finder.on('end', function(data) {
+    var found = false;
+    finder.on('objects', function(data) {
       assert.strictEqual(data.Contents.length, 1);
+      found = true;
+    });
+    finder.on('end', function() {
+      assert.strictEqual(found, true);
       done();
     });
   });
@@ -217,6 +222,10 @@ describe("s3", function () {
   });
 
   it("deletes a folder");
+
+  it("uploadDir with deleteRemove");
+
+  it("downloadDir with deleteRemove");
 });
 
 function assertFilesMd5(list, cb) {

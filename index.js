@@ -270,8 +270,8 @@ Client.prototype.listObjects = function(params) {
   var self = this;
   var ee = new EventEmitter();
   var s3Details = extend({}, params.s3Params);
-  var allContents = [];
   var recursive = !!params.recursive;
+  var abort = false;
 
   ee.progressAmount = 0;
   ee.objectsFound = 0;
@@ -281,21 +281,26 @@ Client.prototype.listObjects = function(params) {
       ee.emit('error', err);
       return;
     }
-    data.Contents = allContents;
-    ee.emit('end', data);
+    ee.emit('end');
   });
+
+  ee.abort = function() {
+    abort = true;
+  };
 
   return ee;
 
   function findAllS3Objects(marker, prefix, cb) {
+    if (abort) return;
     doWithRetry(listObjects, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
+      if (abort) return;
       if (err) return cb(err);
 
-      allContents = allContents.concat(data.Contents);
       ee.progressAmount += 1;
       ee.objectsFound += data.Contents.length;
       ee.dirsFound += data.CommonPrefixes.length;
       ee.emit('progress');
+      ee.emit('objects', data);
 
       var pend = new Pend();
 
@@ -309,7 +314,7 @@ Client.prototype.listObjects = function(params) {
       }
 
       pend.wait(function(err) {
-        cb(err, data);
+        cb(err);
       });
 
       function findNext1000(cb) {
@@ -325,11 +330,17 @@ Client.prototype.listObjects = function(params) {
     });
 
     function listObjects(cb) {
+      if (abort) return;
       self.s3Pend.go(function(pendCb) {
+        if (abort) {
+          pendCb();
+          return;
+        }
         s3Details.Marker = marker;
         s3Details.Prefix = prefix;
         self.s3.listObjects(s3Details, function(err, data) {
           pendCb();
+          if (abort) return;
           cb(err, data);
         });
       });
@@ -338,10 +349,11 @@ Client.prototype.listObjects = function(params) {
 };
 
 /* params:
- * - Bucket (required)
- * - Key (required)
  * - deleteRemoved - delete s3 objects with no corresponding local file. default false
  * - localDir - path on local file system to sync
+ * - s3Params:
+ *   - Bucket (required)
+ *   - Key (required)
  */
 Client.prototype.uploadDir = function(params) {
   return syncDir(this, params, true);
@@ -349,6 +361,51 @@ Client.prototype.uploadDir = function(params) {
 
 Client.prototype.downloadDir = function(params) {
   return syncDir(this, params, false);
+};
+
+Client.prototype.deleteDir = function(s3Params) {
+  var self = this;
+  var ee = new EventEmitter();
+  var listObjectsParams = {
+    recursive: true,
+    s3Params: s3Params,
+  };
+  var finder = self.listObjects(listObjectsParams);
+  var pend = new Pend();
+  ee.progressAmount = 0;
+  ee.progressTotal = 0;
+  finder.on('error', function(err) {
+    ee.emit('error', err);
+  });
+  finder.on('objects', function(objects) {
+    ee.progressTotal += objects.length;
+    ee.emit('progress');
+    pend.go(function(cb) {
+      var params = {
+        Bucket: s3Params.Bucket,
+        Delete: {
+          Objects: objects,
+          Quiet: true,
+        },
+      };
+      var deleter = self.deleteObjects(params);
+      deleter.on('error', function(err) {
+        finder.abort();
+        ee.emit('error', err);
+      });
+      deleter.on('end', function() {
+        ee.progressAmount += objects.length;
+        ee.emit('progress');
+        cb();
+      });
+    });
+  });
+  finder.on('end', function() {
+    pend.wait(function() {
+      ee.emit('end');
+    });
+  });
+  return ee;
 };
 
 function syncDir(self, params, directionIsToS3) {
@@ -512,12 +569,14 @@ function syncDir(self, params, directionIsToS3) {
     finder.on('error', function(err) {
       cb(err);
     });
-    finder.on('end', function(data) {
+    finder.on('objects', function(data) {
       data.Contents.forEach(function(object) {
         var key = removeSlashPrefix(object.Key);
         key = removeSlashPrefix(key.substring(prefix.length));
         s3Objects[key] = object;
       });
+    });
+    finder.on('end', function() {
       cb();
     });
   }
