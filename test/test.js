@@ -311,6 +311,7 @@ describe("s3", function () {
   });
 
   it("download file - check the md5 and error if it doesn't match the etag");
+  it("cli tool");
   it("progress on uploadDir and downloadDir");
 });
 

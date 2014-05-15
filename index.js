@@ -287,7 +287,7 @@ Client.prototype.listObjects = function(params) {
   ee.progressAmount = 0;
   ee.objectsFound = 0;
   ee.dirsFound = 0;
-  findAllS3Objects(s3Details.Marker, ensureSep(s3Details.Prefix), function(err, data) {
+  findAllS3Objects(s3Details.Marker, s3Details.Prefix, function(err, data) {
     if (err) {
       ee.emit('error', err);
       return;
