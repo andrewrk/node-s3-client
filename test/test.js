@@ -309,8 +309,6 @@ describe("s3", function () {
       done();
     });
   });
-
-  it("download file - check the md5 and error if it doesn't match the etag");
 });
 
 function assertFilesMd5(list, cb) {

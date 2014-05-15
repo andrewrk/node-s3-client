@@ -232,7 +232,9 @@ Client.prototype.downloadFile = function(params) {
     var response = request.createReadStream();
     var outStream = fs.createWriteStream(localFile);
     var counter = new StreamCounter();
+    var hash = crypto.createHash('md5');
     var errorOccurred = false;
+    var eTag = "";
 
     response.on('error', handleError);
     outStream.on('error', handleError);
@@ -244,6 +246,15 @@ Client.prototype.downloadFile = function(params) {
         downloader.progressAmount = 0;
         downloader.emit('progress');
         downloader.emit('httpHeaders', statusCode, headers, resp);
+        eTag = headers.etag || "";
+      } else {
+        handleError(new Error("http status code " + statusCode));
+      }
+    });
+
+    hash.on('data', function(digest) {
+      if (!compareETag(eTag, digest)) {
+        handleError(new Error("ETag does not match MD5 checksum"));
       }
     });
 
@@ -259,6 +270,7 @@ Client.prototype.downloadFile = function(params) {
 
     response.pipe(counter);
     response.pipe(outStream);
+    response.pipe(hash);
 
     function handleError(err) {
       if (errorOccurred) return;

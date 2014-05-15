@@ -179,7 +179,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-pro
 The difference between using AWS SDK `getObject` and this one:
 
  * This works with a destination file, not a stream or a buffer.
- * (TODO) If the reported MD5 upon download completion does not match, it retries.
+ * If the reported MD5 upon download completion does not match, it retries.
  * Retry based on the client's retry settings.
  * Progress reporting.
 
@@ -342,7 +342,6 @@ And these events:
  * complete module rewrite
  * depend on official AWS SDK instead of knox
  * support `uploadDir`, `downloadDir`, `listObjects`, `deleteObject`, and `deleteDir`
- * (TODO) add a cli tool
 
 ### 0.3.1
 
