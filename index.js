@@ -260,7 +260,7 @@ Client.prototype.downloadFile = function(params) {
  *  - recursive: false
  *  - s3Params:
  *    - Bucket: params.s3Params.Bucket,
- *    - Delimiter: '/',
+ *    - Delimiter: null,
  *    - EncodingType: 'url',
  *    - Marker: null,
  *    - MaxKeys: null,
@@ -432,7 +432,6 @@ function syncDir(self, params, directionIsToS3) {
     recursive: true,
     s3Params: {
       Bucket: bucket,
-      Delimiter: '/',
       EncodingType: 'url',
       Marker: null,
       MaxKeys: null,

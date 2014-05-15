@@ -309,7 +309,6 @@ describe("s3", function () {
     });
   });
 
-  it("take advantage of not setting a delimiter when calling listObjects");
   it("downloadDir with deleteRemoved should delete local folders");
 });
 
