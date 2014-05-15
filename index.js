@@ -422,10 +422,11 @@ function syncDir(self, params, directionIsToS3) {
   var s3Objects = {};
   var deleteRemoved = params.deleteRemoved === true;
   var prefix = ensureSep(params.s3Params.Prefix);
+  var bucket = params.s3Params.Bucket;
   var listObjectsParams = {
     recursive: true,
     s3Params: {
-      Bucket: params.s3Params.Bucket,
+      Bucket: bucket,
       Delimiter: '/',
       EncodingType: 'url',
       Marker: null,
@@ -551,11 +552,11 @@ function syncDir(self, params, directionIsToS3) {
       var s3Object = s3Objects[relPath];
       var localFileStat = localFiles[relPath];
       if (!localFileStat) {
-        objectsToDelete.push({Key: relPath});
+        objectsToDelete.push({Key: prefix + relPath});
       }
     }
     var params = {
-      Bucket: params.Bucket,
+      Bucket: bucket,
       Delete: {
         Objects: objectsToDelete,
         Quiet: true,

@@ -221,6 +221,44 @@ describe("s3", function () {
     });
   });
 
+  it("uploadDir with deleteRemoved", function(done) {
+    var client = createClient();
+    var params = {
+      localDir: path.join(__dirname, "dir2"),
+      deleteRemoved: true,
+      s3Params: {
+        Prefix: remoteDir,
+        Bucket: s3Bucket,
+      },
+    };
+    var uploader = client.uploadDir(params);
+    uploader.on('end', function() {
+      done();
+    });
+  });
+
+  it("lists objects", function(done) {
+    var params = {
+      recursive: true,
+      s3Params: {
+        Bucket: s3Bucket,
+        Prefix: remoteDir,
+      },
+    };
+    var client = createClient();
+    var finder = client.listObjects(params);
+    var found = false;
+    finder.on('objects', function(data) {
+      assert.strictEqual(data.Contents.length, 2);
+      assert.strictEqual(data.CommonPrefixes.length, 0);
+      found = true;
+    });
+    finder.on('end', function() {
+      assert.strictEqual(found, true);
+      done();
+    });
+  });
+
   it("deletes a folder", function(done) {
     var client = createClient();
     var s3Params = {
@@ -233,9 +271,7 @@ describe("s3", function () {
     });
   });
 
-  it("uploadDir with deleteRemove");
-
-  it("downloadDir with deleteRemove");
+  it("downloadDir with deleteRemoved");
 });
 
 function assertFilesMd5(list, cb) {
