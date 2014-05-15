@@ -272,7 +272,6 @@ Client.prototype.downloadFile = function(params) {
  *  - s3Params:
  *    - Bucket: params.s3Params.Bucket,
  *    - Delimiter: null,
- *    - EncodingType: 'url',
  *    - Marker: null,
  *    - MaxKeys: null,
  *    - Prefix: prefix,
@@ -384,7 +383,6 @@ Client.prototype.deleteDir = function(s3Params) {
     s3Params: {
       Bucket: bucket,
       Prefix: s3Params.Prefix,
-      EncodingType: 'url',
     },
   };
   var finder = self.listObjects(listObjectsParams);
@@ -447,7 +445,6 @@ function syncDir(self, params, directionIsToS3) {
     recursive: true,
     s3Params: {
       Bucket: bucket,
-      EncodingType: 'url',
       Marker: null,
       MaxKeys: null,
       Prefix: prefix,
@@ -679,7 +676,6 @@ function syncDir(self, params, directionIsToS3) {
       if (stat.size > MAX_PUTOBJECT_SIZE) {
         stat.md5sum = new Buffer(0); // ETag has different format for files this big
         localFiles[relPath] = stat;
-        localFilesSize += stat.size;
         return;
       }
       pend.go(function(cb) {
@@ -694,6 +690,7 @@ function syncDir(self, params, directionIsToS3) {
         hash.on('data', function(digest) {
           stat.md5sum = digest;
           localFiles[relPath] = stat;
+          localFilesSize += stat.size;
           cb();
         });
         inStream.pipe(hash);
