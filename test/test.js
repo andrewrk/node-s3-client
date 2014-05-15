@@ -77,7 +77,7 @@ describe("s3", function () {
       var progress = 0;
       var progressEventCount = 0;
       uploader.on('progress', function() {
-        var amountDone = uploader.progressUploadAmount;
+        var amountDone = uploader.progressAmount;
         var amountTotal = uploader.progressTotal;
         var newProgress = amountDone / amountTotal;
         progressEventCount += 1;
@@ -311,8 +311,6 @@ describe("s3", function () {
   });
 
   it("download file - check the md5 and error if it doesn't match the etag");
-  it("cli tool");
-  it("progress on uploadDir and downloadDir");
 });
 
 function assertFilesMd5(list, cb) {

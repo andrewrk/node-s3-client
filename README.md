@@ -61,7 +61,7 @@ uploader.on('error', function(err) {
 });
 uploader.on('progress', function() {
   console.log("progress", uploader.progressMd5Amount,
-            uploader.progressUploadAmount, uploader.progressTotal);
+            uploader.progressAmount, uploader.progressTotal);
 });
 uploader.on('end', function() {
   console.log("done uploading");
@@ -156,7 +156,7 @@ The difference between using AWS SDK `putObject` and this one:
 Returns an `EventEmitter` with these properties:
 
  * `progressMd5Amount`
- * `progressUploadAmount`
+ * `progressAmount`
  * `progressTotal`
 
 And these events:
@@ -164,7 +164,7 @@ And these events:
  * `'error' (err)`
  * `'end' (data)` - emitted when the file is uploaded successfully
    - `data` is the same object that you get from `putObject` in AWS SDK
- * `'progress'` - emitted when `progressMd5Amount`, `progressUploadAmount`, and
+ * `'progress'` - emitted when `progressMd5Amount`, `progressAmount`, and
    `progressTotal` properties change.
 
 ### client.downloadFile(params)
@@ -276,10 +276,16 @@ Syncs an entire directory to S3.
    - `Prefix` (required)
    - `Bucket` (required)
 
-Returns an `EventEmitter` with these events:
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
 
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
+ * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
 
 ### client.downloadDir(params)
 
@@ -293,10 +299,16 @@ Syncs an entire directory from S3.
    - `Prefix` (required)
    - `Bucket` (required)
 
-Returns an `EventEmitter` with these events:
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
 
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
+ * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
 
 ### client.deleteDir(s3Params)
 

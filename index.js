@@ -89,7 +89,7 @@ Client.prototype.uploadFile = function(params) {
   var self = this;
   var uploader = new EventEmitter();
   uploader.progressMd5Amount = 0;
-  uploader.progressUploadAmount = 0;
+  uploader.progressAmount = 0;
   uploader.progressTotal = 1;
 
   var localFile = params.localFile;
@@ -176,10 +176,10 @@ Client.prototype.uploadFile = function(params) {
       s3Params.Body = inStream;
       s3Params.ContentMD5 = localFileStat.md5sum.toString('base64');
       s3Params.ContentLength = localFileStat.size;
-      uploader.progressUploadAmount = 0;
+      uploader.progressAmount = 0;
       var counter = new StreamCounter();
       counter.on('progress', function() {
-        uploader.progressUploadAmount = counter.bytes;
+        uploader.progressAmount = counter.bytes;
         uploader.emit('progress');
       });
       inStream.pipe(counter);
@@ -435,8 +435,10 @@ function syncDir(self, params, directionIsToS3) {
 
   var localDir = params.localDir;
   var localFiles = {};
+  var localFilesSize = 0;
   var localDirs = {};
   var s3Objects = {};
+  var s3ObjectsSize = 0;
   var s3Dirs = {};
   var deleteRemoved = params.deleteRemoved === true;
   var prefix = ensureSep(params.s3Params.Prefix);
@@ -458,6 +460,9 @@ function syncDir(self, params, directionIsToS3) {
   };
   delete upDownFileParams.s3Params.Prefix;
 
+  ee.progressTotal = 0;
+  ee.progressAmount = 0;
+
   var pend = new Pend();
   pend.go(findAllS3Objects);
   pend.go(findAllFiles);
@@ -473,12 +478,15 @@ function syncDir(self, params, directionIsToS3) {
 
     var pend = new Pend();
     if (directionIsToS3) {
+      ee.progressTotal = localFilesSize;
       if (deleteRemoved) pend.go(deleteRemovedObjects);
       pend.go(uploadDifferentObjects);
     } else {
+      ee.progressTotal = s3ObjectsSize;
       if (deleteRemoved) pend.go(deleteRemovedLocalFiles);
       pend.go(downloadDifferentObjects);
     }
+    ee.emit('progress');
     pend.wait(function(err) {
       if (err) {
         ee.emit('error', err);
@@ -495,6 +503,8 @@ function syncDir(self, params, directionIsToS3) {
       var localFileStat = localFiles[relPath];
       if (!localFileStat || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
         downloadOneFile(relPath);
+      } else {
+        ee.progressAmount += localFileStat.size;
       }
     }
     pend.wait(cb);
@@ -506,8 +516,15 @@ function syncDir(self, params, directionIsToS3) {
         upDownFileParams.localFile = fullPath;
         upDownFileParams.localFileStat = null;
         var downloader = self.downloadFile(upDownFileParams);
+        var prevAmountDone = 0;
         downloader.on('error', function(err) {
           cb(err);
+        });
+        downloader.on('progress', function() {
+          var delta = downloader.progressAmount - prevAmountDone;
+          prevAmountDone = downloader.progressAmount;
+          ee.progressAmount += prevAmountDone;
+          ee.emit('progress');
         });
         downloader.on('end', function() {
           cb();
@@ -565,8 +582,11 @@ function syncDir(self, params, directionIsToS3) {
       var s3Object = s3Objects[relPath];
       if (!s3Object || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
         uploadOneFile(relPath, localFileStat);
+      } else {
+        ee.progressAmount += s3Object.Size;
       }
     }
+    ee.emit('progress');
     pend.wait(cb);
 
     function uploadOneFile(relPath, localFileStat) {
@@ -576,8 +596,15 @@ function syncDir(self, params, directionIsToS3) {
         upDownFileParams.localFile = fullPath;
         upDownFileParams.localFileStat = localFileStat;
         var uploader = self.uploadFile(upDownFileParams);
+        var prevAmountDone = 0;
         uploader.on('error', function(err) {
           cb(err);
+        });
+        uploader.on('progress', function() {
+          var delta = uploader.progressAmount - prevAmountDone;
+          prevAmountDone = uploader.progressAmount;
+          ee.progressAmount += prevAmountDone;
+          ee.emit('progress');
         });
         uploader.on('end', function() {
           cb();
@@ -620,6 +647,7 @@ function syncDir(self, params, directionIsToS3) {
       data.Contents.forEach(function(object) {
         var key = object.Key.substring(prefix.length);
         s3Objects[key] = object;
+        s3ObjectsSize += object.Size;
         var dirname = path.dirname(key);
         if (dirname === '.') return;
         s3Dirs[path.dirname(key)] = true;
@@ -651,6 +679,7 @@ function syncDir(self, params, directionIsToS3) {
       if (stat.size > MAX_PUTOBJECT_SIZE) {
         stat.md5sum = new Buffer(0); // ETag has different format for files this big
         localFiles[relPath] = stat;
+        localFilesSize += stat.size;
         return;
       }
       pend.go(function(cb) {
