@@ -262,6 +262,8 @@ And these events:
 
 ### client.uploadDir(params)
 
+Syncs an entire directory to S3.
+
 `params`:
 
  * `deleteRemoved` - delete s3 objects with no corresponding local file. default false
@@ -277,6 +279,8 @@ Returns an `EventEmitter` with these events:
 
 ### client.downloadDir(params)
 
+Syncs an entire directory from S3.
+
 `params`:
 
  * `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
@@ -289,6 +293,27 @@ Returns an `EventEmitter` with these events:
 
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
+
+### client.deleteDir(s3Params)
+
+Deletes an entire directory on S3.
+
+`s3Params`:
+
+ * `Bucket`
+ * `Prefix`
+ * `MFA` (optional)
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when all objects are deleted.
+ * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
 
 ## Testing
 
