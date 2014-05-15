@@ -10,7 +10,9 @@
  * Limited to files less than 5GB.
  * Progress reporting.
 
-## Usage
+## Synopsis
+
+### Create a client
 
 ```js
 var s3 = require('s3');
@@ -26,8 +28,21 @@ var client = s3.createClient({
     // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
   },
 });
+```
+### Create a client from existing AWS.S3 object
 
-// upload a file to s3
+```js
+var s3 = require('s3');
+var awsS3Client = new AWS.S3(s3Options);
+var options = {
+  s3Client: awsS3Client,
+};
+var client = s3.fromAwsSdkS3(options);
+```
+
+### Upload a file to S3
+
+```js
 var params = {
   localFile: "some/local/file",
 
@@ -43,13 +58,17 @@ uploader.on('error', function(err) {
   console.error("unable to upload:", err.stack);
 });
 uploader.on('progress', function() {
-  console.log("progress", uploader.progressMd5Amount, uploader.progressUploadAmount, uploader.progressTotal);
+  console.log("progress", uploader.progressMd5Amount,
+            uploader.progressUploadAmount, uploader.progressTotal);
 });
 uploader.on('end', function() {
   console.log("done uploading");
 });
+```
 
-// download a file from s3
+### Download a file from S3
+
+```js
 var params = {
   localFile: "some/local/file",
 
@@ -67,8 +86,11 @@ downloader.on('error', function(err) {
 downloader.on('end', function() {
   console.log("done downloading");
 });
+```
 
-// sync a directory to S3
+### Sync a directory to S3
+
+```js
 var params = {
   localDir: "some/local/dir",
   deleteRemoved: true, // default false, whether to remove s3 objects
@@ -88,21 +110,116 @@ uploader.on('error', function(err) {
 uploader.on('end', function() {
   console.log("done uploading");
 });
-
-
-// instantiate from existing AWS.S3 object:
-var awsS3Client = new AWS.S3(s3Options);
-var options = {
-  s3Client: awsS3Client,
-};
-var client = s3.fromAwsSdkS3(options);
 ```
+
+## API Documentation
+
+### s3.createClient(options)
+
+Creates an S3 client.
+
+`options`:
+
+ * `s3Client` - optional, an instance of `AWS.S3`. Leave blank if you provide `s3Options`.
+ * `s3Options` - optional, provide this if you don't provide `s3Client`.
+   - See AWS SDK documentation for available options which are passed to `new AWS.S3()`:
+     http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
+ * `maxAsyncS3` - maximum number of simultaneous requests this client will
+   ever have open to S3. defaults to `Infinity`.
+ * `s3RetryCount` - how many times to try an S3 operation before giving up.
+ * `s3RetryDelay` - how many milliseconds to wait before retrying an S3 operation.
+
+### client.uploadFile(params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+
+`params`:
+
+ * `s3Params`: params to pass to AWS SDK `putObject`.
+ * `localFile`: path to the file on disk you want to upload to S3.
+ * `localFileStat`: optional - if you happen to have the stat object from
+   `fs.stat` and the md5sum of the file, you can provide it here. Otherwise it
+   will be computed for you.
+
+The difference between using AWS SDK `putObject` and this one is:
+
+ * This works with files, not streams or buffers.
+ * If the reported MD5 upon upload completion does not match, it retries.
+ * Retry based on the client's retry settings.
+ * Progress reporting.
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressMd5Amount`
+ * `progressUploadAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end' (data)` - emitted when the file is uploaded successfully
+   - `data` is the same object that you get from `putObject` in AWS SDK
+ * `'progress'` - emitted when `progressMd5Amount`, `progressUploadAmount`, and
+   `progressTotal` properties change.
+
+### client.downloadFile(params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
+
+`params`:
+
+ * `localFile` - the destination path on disk to write the s3 object into
+ * `s3Params`: params to pass to AWS SDK `getObject`.
+
+The difference between using AWS SDK `getObject` and this one is:
+
+ * This works with a destination file, not a stream or a buffer.
+ * (TODO) If the reported MD5 upon download completion does not match, it retries.
+ * Retry based on the client's retry settings.
+ * Progress reporting.
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when the file is uploaded successfully
+ * `'progress'` - emitted when `progressAmount` and `progressTotal` properties change.
+
+### client.deleteObjects(s3Params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#deleteObjects-property
+
+`s3Params` are the same.
+
+The difference between using AWS SDK `deleteObjects` and this one is that this one will:
+
+ * Retry based on the client's retry settings.
+ * Make multiple requests if the number of objects you want to delete is
+   greater than 1000.
+
+Returns an `EventEmitter` with these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when all objects are deleted.
+ * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
+ * `'data' (data)` - emitted when a request completes. There may be more.
 
 ## Testing
 
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`
 
 ## History
+
+### 1.0.0
+
+ * complete module rewrite
+ * depend on official AWS SDK instead of knox
+ * support `uploadDir`, `downloadDir`, `listObjects`, `deleteObject`, and `deleteDir`
+ * (TODO) add a cli tool
 
 ### 0.3.1
 

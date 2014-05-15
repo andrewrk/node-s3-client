@@ -11,7 +11,7 @@ var mkdirp = require('mkdirp');
 
 // greater than 5 gigabytes and S3 requires a multipart upload. Multipart
 // uploads have a different ETag format. For multipart upload ETags it is
-// impossible to tell how te generate the ETag.
+// impossible to tell how to generate the ETag.
 // unfortunately we're still assuming that files <= 5 GB were not uploaded with
 // via multipart upload.
 var MAX_PUTOBJECT_SIZE = 5 * 1024 * 1024 * 1024;
@@ -31,18 +31,23 @@ function Client(options) {
   this.s3Pend.max = options.maxAsyncS3 || Infinity;
   this.s3RetryCount = options.s3RetryCount || 3;
   this.s3RetryDelay = options.s3RetryDelay || 1000;
-  this.freePend = new Pend();
 }
 
-Client.prototype.deleteObjects = function(params) {
+Client.prototype.deleteObjects = function(s3Params) {
   var self = this;
   var ee = new EventEmitter();
 
-  var targetObjects = params.Delete.Objects;
-  var slices = chunkArray(targetObjects, MAX_DELETE_COUNT);
+  var params = {
+    Bucket: s3Params.Bucket,
+    Delete: extend({}, s3Params.Delete),
+    MFA: s3Params.MFA,
+  };
+  var slices = chunkArray(params.Delete.Objects, MAX_DELETE_COUNT);
   var errorOccurred = false;
-  var errors = [];
   var pend = new Pend();
+
+  ee.progressAmount = 0;
+  ee.progressTotal = params.Delete.Objects.length;
 
   slices.forEach(uploadSlice);
   pend.wait(function(err) {
@@ -50,7 +55,7 @@ Client.prototype.deleteObjects = function(params) {
       ee.emit('error', err);
       return;
     }
-    ee.emit('end', errors);
+    ee.emit('end');
   });
   return ee;
 
@@ -60,7 +65,9 @@ Client.prototype.deleteObjects = function(params) {
         if (err) {
           cb(err);
         } else {
-          errors = errors.concat(data.Errors);
+          ee.progressAmount += slice.length;
+          ee.emit('progress');
+          ee.emit('data', data);
           cb();
         }
       });
@@ -153,7 +160,7 @@ Client.prototype.uploadFile = function(params) {
         return;
       }
 
-      uploader.emit('end');
+      uploader.emit('end', data);
     });
   }
 
@@ -233,6 +240,9 @@ Client.prototype.downloadFile = function(params) {
       if (statusCode < 300) {
         var contentLength = parseInt(headers['content-length'], 10);
         downloader.progressTotal = contentLength;
+        downloader.progressAmount = 0;
+        downloader.emit('progress');
+        downloader.emit('httpHeaders', statusCode, headers, resp);
       }
     });
 
