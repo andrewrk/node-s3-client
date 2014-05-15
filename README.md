@@ -30,6 +30,7 @@ var client = s3.createClient({
   },
 });
 ```
+
 ### Create a client from existing AWS.S3 object
 
 ```js
@@ -202,7 +203,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-p
 
  * `recursive` - `true` or `false` whether or not you want to recurse
    into directories.
- * `s3Params` - params to pass to AWS SDK 'listObjects`.
+ * `s3Params` - params to pass to AWS SDK `listObjects`.
 
 Note that if you set `Delimiter` in `s3Params` then you will get a list of
 objects and folders in the directory you specify. You probably do not want to
@@ -225,7 +226,7 @@ Returns an `EventEmitter` with these properties:
 And these events:
 
  * `'error' (err)`
- * `'end'` - emitted when the file is uploaded successfully
+ * `'end'` - emitted when done listing and no more 'data' events will be emitted.
  * `'data' (data)` - emitted when a batch of objects are found. This is
    the same as the `data` object in AWS SDK.
  * `'progress'` - emitted when `progressAmount`, `objectsFound`, and
@@ -247,12 +248,47 @@ The difference between using AWS SDK `deleteObjects` and this one is that this o
  * Make multiple requests if the number of objects you want to delete is
    greater than 1000.
 
-Returns an `EventEmitter` with these events:
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
 
  * `'error' (err)`
  * `'end'` - emitted when all objects are deleted.
  * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
  * `'data' (data)` - emitted when a request completes. There may be more.
+
+### client.uploadDir(params)
+
+`params`:
+
+ * `deleteRemoved` - delete s3 objects with no corresponding local file. default false
+ * `localDir` - source path on local file system to sync to S3
+ * `s3Params`
+   - `Prefix` (required)
+   - `Bucket` (required)
+
+Returns an `EventEmitter` with these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when all files are uploaded
+
+### client.downloadDir(params)
+
+`params`:
+
+ * `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
+ * `localDir` - destination directory on local file system to sync to
+ * `s3Params`
+   - `Prefix` (required)
+   - `Bucket` (required)
+
+Returns an `EventEmitter` with these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when all files are uploaded
 
 ## Testing
 
