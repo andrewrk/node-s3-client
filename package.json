@@ -25,7 +25,8 @@
   "license": "BSD",
   "devDependencies": {
     "mocha": "^1.18.2",
-    "rimraf": "^2.2.8"
+    "rimraf": "^2.2.8",
+    "ncp": "^0.5.1"
   },
   "dependencies": {
     "aws-sdk": "^2.0.0-rc.16",

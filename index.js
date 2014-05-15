@@ -513,7 +513,7 @@ function syncDir(self, params, directionIsToS3) {
     function deleteOneFile(relPath) {
       var fullPath = path.join(localDir, relPath);
       pend.go(function(cb) {
-        fs.unlink(cb);
+        fs.unlink(fullPath, cb);
       });
     }
   }

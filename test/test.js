@@ -1,5 +1,6 @@
 var s3 = require('../');
 var path = require('path');
+var ncp = require('ncp');
 var Pend = require('pend');
 var assert = require('assert');
 var fs = require('fs');
@@ -259,6 +260,43 @@ describe("s3", function () {
     });
   });
 
+  it("downloadDir with deleteRemoved", function(done) {
+    var localDir = path.join(__dirname, "dir1");
+    var localTmpDir = path.join(tempDir, "dir1");
+    ncp(localDir, localTmpDir, function(err) {
+      if (err) throw err;
+
+      var client = createClient();
+      var localDir = path.join(tempDir, "dir-copy");
+      var params = {
+        localDir: localTmpDir,
+        deleteRemoved: true,
+        s3Params: {
+          Prefix: remoteDir,
+          Bucket: s3Bucket,
+        },
+      };
+      var downloader = client.downloadDir(params);
+      downloader.on('end', function() {
+        assertFilesMd5([
+          {
+            path: path.join(localTmpDir, "file1"),
+            md5: "b1946ac92492d2347c6235b4d2611184",
+          },
+          {
+            path: path.join(localTmpDir, "inner1/a"),
+            md5: "ebcb2061cab1d5c35241a79d27dce3af",
+          },
+        ], function(err) {
+          if (err) throw err;
+          assert.strictEqual(fs.existsSync(path.join(localTmpDir, "file2")), false);
+          assert.strictEqual(fs.existsSync(path.join(localTmpDir, "inner2/b")), false);
+          done();
+        });
+      });
+    });
+  });
+
   it("deletes a folder", function(done) {
     var client = createClient();
     var s3Params = {
@@ -271,7 +309,8 @@ describe("s3", function () {
     });
   });
 
-  it("downloadDir with deleteRemoved");
+  it("take advantage of not setting a delimiter when calling listObjects");
+  it("downloadDir with deleteRemoved should delete local folders");
 });
 
 function assertFilesMd5(list, cb) {
