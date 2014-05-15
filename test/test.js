@@ -1,9 +1,11 @@
 var s3 = require('../');
 var path = require('path');
+var Pend = require('pend');
 var assert = require('assert');
 var fs = require('fs');
 var mkdirp = require('mkdirp');
 var crypto = require('crypto');
+var rimraf = require('rimraf');
 var tempDir = path.join(__dirname, 'tmp');
 var localFile = path.join(tempDir, 'random');
 var remoteRoot = "/node-s3-test/";
@@ -12,6 +14,7 @@ var remoteDir = path.join(remoteRoot, "dir1");
 
 var describe = global.describe;
 var it = global.it;
+var after = global.after;
 
 var s3Bucket = process.env.S3_BUCKET;
 
@@ -51,6 +54,11 @@ function createBigFile(size, cb) {
 
 describe("s3", function () {
   var hexdigest;
+
+  after(function(done) {
+    rimraf(tempDir, done);
+  });
+
   it("uploads", function(done) {
     createBigFile(4000, function (err, _hexdigest) {
       if (err) return done(err);
@@ -175,7 +183,55 @@ describe("s3", function () {
     });
   });
 
-  it("downloads a folder");
+  it("downloads a folder", function(done) {
+    var client = createClient();
+    var localDir = path.join(tempDir, "dir-copy");
+    var params = {
+      localDir: localDir,
+      s3Params: {
+        Prefix: remoteDir,
+        Bucket: s3Bucket,
+      },
+    };
+    var downloader = client.downloadDir(params);
+    downloader.on('end', function() {
+      assertFilesMd5([
+        {
+          path: path.join(localDir, "file1"),
+          md5: "b1946ac92492d2347c6235b4d2611184",
+        },
+        {
+          path: path.join(localDir, "file2"),
+          md5: "6f0f1993fceae490cedfb1dee04985af",
+        },
+        {
+          path: path.join(localDir, "inner1/a"),
+          md5: "ebcb2061cab1d5c35241a79d27dce3af",
+        },
+        {
+          path: path.join(localDir, "inner2/b"),
+          md5: "c96b1cbe66f69b234cf361d8c1e5bbb9",
+        },
+      ], done);
+    });
+  });
 
   it("deletes a folder");
 });
+
+function assertFilesMd5(list, cb) {
+  var pend = new Pend();
+  list.forEach(function(o) {
+    pend.go(function(cb) {
+      var inStream = fs.createReadStream(o.path);
+      var hash = crypto.createHash('md5');
+      inStream.pipe(hash);
+      hash.on('data', function(digest) {
+        var hexDigest = digest.toString('hex');
+        assert.strictEqual(hexDigest, o.md5, o.path + " md5 mismatch");
+        cb();
+      });
+    });
+  });
+  pend.wait(cb);
+}

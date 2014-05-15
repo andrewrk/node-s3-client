@@ -198,9 +198,9 @@ Client.prototype.downloadFile = function(params) {
   var self = this;
   var downloader = new EventEmitter();
   var localFile = params.localFile;
-  var s3Params = params.s3Params;
+  var s3Params = extend({}, params.s3Params);
 
-  var dirPath = path.basename(localFile);
+  var dirPath = path.dirname(localFile);
   mkdirp(dirPath, function(err) {
     if (err) {
       downloader.emit('error', err);
@@ -421,7 +421,7 @@ function syncDir(self, params, directionIsToS3) {
     function downloadOneFile(relPath) {
       var fullPath = path.join(localDir, relPath);
       pend.go(function(cb) {
-        upDownFileParams.s3Params.Key = relPath;
+        upDownFileParams.s3Params.Key = prefix + relPath;
         upDownFileParams.localFile = fullPath;
         upDownFileParams.localFileStat = null;
         var downloader = self.downloadFile(upDownFileParams);

@@ -24,7 +24,8 @@
   "author": "Andrew Kelley",
   "license": "BSD",
   "devDependencies": {
-    "mocha": "^1.18.2"
+    "mocha": "^1.18.2",
+    "rimraf": "^2.2.8"
   },
   "dependencies": {
     "aws-sdk": "^2.0.0-rc.16",
