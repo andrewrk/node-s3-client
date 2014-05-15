@@ -17,14 +17,6 @@ var MAX_PUTOBJECT_SIZE = 5 * 1024 * 1024 * 1024;
 
 var MAX_DELETE_COUNT = 1000;
 
-/*
-TODO:
- - test debugger areas
- - write tests
- - ability to query progress
- - don't clobber input params
-*/
-
 exports.createClient = function(options) {
   return new Client(options);
 };
@@ -264,14 +256,27 @@ Client.prototype.downloadFile = function(params) {
   }
 };
 
+/* params:
+ *  - recursive: false
+ *  - s3Params:
+ *    - Bucket: params.s3Params.Bucket,
+ *    - Delimiter: '/',
+ *    - EncodingType: 'url',
+ *    - Marker: null,
+ *    - MaxKeys: null,
+ *    - Prefix: prefix,
+ */
 Client.prototype.listObjects = function(params) {
   var self = this;
   var ee = new EventEmitter();
-  var s3Details = extend({}, params);
+  var s3Details = extend({}, params.s3Params);
   var allContents = [];
+  var recursive = !!params.recursive;
 
   ee.progressAmount = 0;
-  findAllS3Objects(function(err, data) {
+  ee.objectsFound = 0;
+  ee.dirsFound = 0;
+  findAllS3Objects(s3Details.Marker, s3Details.Prefix, function(err, data) {
     if (err) {
       ee.emit('error', err);
       return;
@@ -282,24 +287,47 @@ Client.prototype.listObjects = function(params) {
 
   return ee;
 
-  function findAllS3Objects(cb) {
+  function findAllS3Objects(marker, prefix, cb) {
     doWithRetry(listObjects, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
       if (err) return cb(err);
 
       allContents = allContents.concat(data.Contents);
       ee.progressAmount += 1;
+      ee.objectsFound += data.Contents.length;
+      ee.dirsFound += data.CommonPrefixes.length;
       ee.emit('progress');
 
+      var pend = new Pend();
+
+      if (recursive) {
+        data.CommonPrefixes.forEach(recurse);
+        data.CommonPrefixes = [];
+      }
+
       if (data.IsTruncated) {
-        s3Details.Marker = data.NextMarker;
-        findAllS3Objects(cb);
-      } else {
-        cb(null, data);
+        pend.go(findNext1000);
+      }
+
+      pend.wait(function(err) {
+        cb(err, data);
+      });
+
+      function findNext1000(cb) {
+        findAllS3Objects(data.NextMarker, prefix, cb);
+      }
+
+      function recurse(dirObj) {
+        var prefix = dirObj.Prefix;
+        pend.go(function(cb) {
+          findAllS3Objects(null, prefix, cb);
+        });
       }
     });
 
     function listObjects(cb) {
       self.s3Pend.go(function(pendCb) {
+        s3Details.Marker = marker;
+        s3Details.Prefix = prefix;
         self.s3.listObjects(s3Details, function(err, data) {
           pendCb();
           cb(err, data);
@@ -312,7 +340,6 @@ Client.prototype.listObjects = function(params) {
 /* params:
  * - Bucket (required)
  * - Key (required)
- * - Delimiter - defaults to '/'
  * - deleteRemoved - delete s3 objects with no corresponding local file. default false
  * - localDir - path on local file system to sync
  */
@@ -331,15 +358,24 @@ function syncDir(self, params, directionIsToS3) {
   var localFiles = {};
   var s3Objects = {};
   var deleteRemoved = params.deleteRemoved === true;
-  var findS3ObjectsParams = {
-    Bucket: params.s3Params.Bucket,
-    Delimiter: params.s3Params.Delimiter || '/',
-    EncodingType: 'url',
-    Marker: null,
-    MaxKeys: null,
-    Prefix: params.s3Params.Key,
+  var prefix = ensureSep(removeSlashPrefix(params.s3Params.Prefix));
+  var listObjectsParams = {
+    recursive: true,
+    s3Params: {
+      Bucket: params.s3Params.Bucket,
+      Delimiter: '/',
+      EncodingType: 'url',
+      Marker: null,
+      MaxKeys: null,
+      Prefix: prefix,
+    },
   };
-  var s3Details = extend({}, params.s3Params);
+  var upDownFileParams = {
+    localFile: null,
+    localFileStat: null,
+    s3Params: extend({}, params.s3Params),
+  };
+  delete upDownFileParams.s3Params.Prefix;
 
   var pend = new Pend();
   pend.go(findAllS3Objects);
@@ -373,7 +409,6 @@ function syncDir(self, params, directionIsToS3) {
 
   function downloadDifferentObjects(cb) {
     var pend = new Pend();
-    debugger
     for (var relPath in s3Objects) {
       var s3Object = s3Objects[relPath];
       var localFileStat = localFiles[relPath];
@@ -386,10 +421,10 @@ function syncDir(self, params, directionIsToS3) {
     function downloadOneFile(relPath) {
       var fullPath = path.join(localDir, relPath);
       pend.go(function(cb) {
-        s3Details.Key = relPath;
-        s3Details.localFile = fullPath;
-        // TODO
-        var downloader = self.downloadFile(s3Details);
+        upDownFileParams.s3Params.Key = relPath;
+        upDownFileParams.localFile = fullPath;
+        upDownFileParams.localFileStat = null;
+        var downloader = self.downloadFile(upDownFileParams);
         downloader.on('error', function(err) {
           cb(err);
         });
@@ -402,7 +437,6 @@ function syncDir(self, params, directionIsToS3) {
 
   function deleteRemovedLocalFiles(cb) {
     var pend = new Pend();
-    debugger;
     for (var relPath in localFiles) {
       var localFileStat = localFiles[relPath];
       var s3Object = s3Objects[relPath];
@@ -422,12 +456,11 @@ function syncDir(self, params, directionIsToS3) {
 
   function uploadDifferentObjects(cb) {
     var pend = new Pend();
-    debugger
     for (var relPath in localFiles) {
       var localFileStat = localFiles[relPath];
       var s3Object = s3Objects[relPath];
       if (!s3Object || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
-        uploadOneFile(relPath);
+        uploadOneFile(relPath, localFileStat);
       }
     }
     pend.wait(cb);
@@ -435,10 +468,10 @@ function syncDir(self, params, directionIsToS3) {
     function uploadOneFile(relPath, localFileStat) {
       var fullPath = path.join(localDir, relPath);
       pend.go(function(cb) {
-        s3Details.Key = relPath;
-        s3Details.localFile = fullPath;
-        s3Details.localFileStat = localFileStat;
-        var uploader = self.uploadFile(s3Details);
+        upDownFileParams.s3Params.Key = prefix + relPath;
+        upDownFileParams.localFile = fullPath;
+        upDownFileParams.localFileStat = localFileStat;
+        var uploader = self.uploadFile(upDownFileParams);
         uploader.on('error', function(err) {
           cb(err);
         });
@@ -450,7 +483,6 @@ function syncDir(self, params, directionIsToS3) {
   }
 
   function deleteRemovedObjects(cb) {
-    debugger;
     var objectsToDelete = [];
     for (var relPath in s3Objects) {
       var s3Object = s3Objects[relPath];
@@ -476,13 +508,15 @@ function syncDir(self, params, directionIsToS3) {
   }
 
   function findAllS3Objects(cb) {
-    var finder = self.listObjects(findS3ObjectsParams);
+    var finder = self.listObjects(listObjectsParams);
     finder.on('error', function(err) {
       cb(err);
     });
     finder.on('end', function(data) {
       data.Contents.forEach(function(object) {
-        s3Objects[object.Key] = object;
+        var key = removeSlashPrefix(object.Key);
+        key = removeSlashPrefix(key.substring(prefix.length));
+        s3Objects[key] = object;
       });
       cb();
     });
@@ -574,4 +608,8 @@ function compareETag(eTag, md5Buffer) {
   eTag = eTag.replace(/^\s*'?\s*"?\s*(.*?)\s*"?\s*'?\s*$/, "$1");
   var hex = md5Buffer.toString('hex');
   return eTag === hex;
+}
+
+function removeSlashPrefix(str) {
+  return str.replace(/^\//, "");
 }

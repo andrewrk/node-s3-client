@@ -15,6 +15,11 @@ var it = global.it;
 
 var s3Bucket = process.env.S3_BUCKET;
 
+if (!s3Bucket || !process.env.S3_KEY || !process.env.S3_SECRET) {
+  console.log("S3_BUCKET, S3_KEY, and S3_SECRET env vars needed to run tests");
+  process.exit(1);
+}
+
 function createClient() {
   return s3.createClient({
     s3Options: {
@@ -123,8 +128,11 @@ describe("s3", function () {
 
   it("lists objects", function(done) {
     var params = {
-      Bucket: s3Bucket,
-      Prefix: remoteRoot,
+      recursive: true,
+      s3Params: {
+        Bucket: s3Bucket,
+        Prefix: remoteRoot,
+      },
     };
     var client = createClient();
     var finder = client.listObjects(params);
@@ -141,7 +149,7 @@ describe("s3", function () {
         Delete: {
           Objects: [
             {
-              Key: remoteDir,
+              Key: remoteFile,
             },
           ],
         },
@@ -152,14 +160,12 @@ describe("s3", function () {
       });
   });
 
-  it("uploads a folder");
-  /*
   it("uploads a folder", function(done) {
     var client = createClient();
     var params = {
       localDir: path.join(__dirname, "dir1"),
       s3Params: {
-        Key: remoteFile,
+        Prefix: remoteDir,
         Bucket: s3Bucket,
       },
     };
@@ -168,8 +174,8 @@ describe("s3", function () {
       done();
     });
   });
-  */
 
   it("downloads a folder");
 
+  it("deletes a folder");
 });
