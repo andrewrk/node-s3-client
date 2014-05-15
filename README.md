@@ -11,6 +11,8 @@
  * Limited to files less than 5GB.
  * Limited to objects which were not uploaded using a multipart request.
 
+See also the companion CLI tool, [s3-cli](https://github.com/andrewrk/node-s3-cli).
+
 ## Synopsis
 
 ### Create a client
