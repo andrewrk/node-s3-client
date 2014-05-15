@@ -366,11 +366,15 @@ Client.prototype.downloadDir = function(params) {
 Client.prototype.deleteDir = function(s3Params) {
   var self = this;
   var ee = new EventEmitter();
+  var bucket = s3Params.Bucket;
+  var mfa = s3Params.MFA;
   var listObjectsParams = {
     recursive: true,
-    s3Params: extend({
-      Delimiter: '/',
-    }, s3Params),
+    s3Params: {
+      Bucket: bucket,
+      Prefix: s3Params.Prefix,
+      EncodingType: 'url',
+    },
   };
   var finder = self.listObjects(listObjectsParams);
   var pend = new Pend();
@@ -388,11 +392,12 @@ Client.prototype.deleteDir = function(s3Params) {
 
     function deleteThem(cb) {
       var params = {
-        Bucket: s3Params.Bucket,
+        Bucket: bucket,
         Delete: {
           Objects: objects.Contents.map(keyOnly),
           Quiet: true,
         },
+        MFA: mfa,
       };
       var deleter = self.deleteObjects(params);
       deleter.on('error', function(err) {
@@ -676,5 +681,8 @@ function compareETag(eTag, md5Buffer) {
 }
 
 function keyOnly(item) {
-  return {Key: item.Key};
+  return {
+    Key: item.Key,
+    VersionId: item.VersionId,
+  };
 }

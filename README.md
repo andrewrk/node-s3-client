@@ -3,12 +3,12 @@
 ## Features and Limitations
 
  * Automatically retry a configurable number of times when S3 returns an error.
- * No limits. Includes logic to make multiple requests when there is a
-   1000 object limit etc.
+ * Includes logic to make multiple requests when there is a 1000 object limit.
  * Ability to set a limit on the maximum parallelization of S3 requests.
    Retries get pushed to the end of the paralellization queue.
  * Ability to sync a dir to and from S3.
  * Limited to files less than 5GB.
+ * Progress reporting.
 
 ## Usage
 
