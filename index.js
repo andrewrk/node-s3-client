@@ -209,6 +209,7 @@ Client.prototype.downloadFile = function(params) {
   var s3Params = extend({}, params.s3Params);
 
   var dirPath = path.dirname(localFile);
+  downloader.progressAmount = 0;
   mkdirp(dirPath, function(err) {
     if (err) {
       downloader.emit('error', err);
@@ -520,7 +521,7 @@ function syncDir(self, params, directionIsToS3) {
         downloader.on('progress', function() {
           var delta = downloader.progressAmount - prevAmountDone;
           prevAmountDone = downloader.progressAmount;
-          ee.progressAmount += prevAmountDone;
+          ee.progressAmount += delta;
           ee.emit('progress');
         });
         downloader.on('end', function() {
@@ -600,7 +601,7 @@ function syncDir(self, params, directionIsToS3) {
         uploader.on('progress', function() {
           var delta = uploader.progressAmount - prevAmountDone;
           prevAmountDone = uploader.progressAmount;
-          ee.progressAmount += prevAmountDone;
+          ee.progressAmount += delta;
           ee.emit('progress');
         });
         uploader.on('end', function() {
