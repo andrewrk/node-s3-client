@@ -368,7 +368,9 @@ Client.prototype.deleteDir = function(s3Params) {
   var ee = new EventEmitter();
   var listObjectsParams = {
     recursive: true,
-    s3Params: s3Params,
+    s3Params: extend({
+      Delimiter: '/',
+    }, s3Params),
   };
   var finder = self.listObjects(listObjectsParams);
   var pend = new Pend();
@@ -380,11 +382,15 @@ Client.prototype.deleteDir = function(s3Params) {
   finder.on('objects', function(objects) {
     ee.progressTotal += objects.length;
     ee.emit('progress');
-    pend.go(function(cb) {
+    if (objects.Contents.length > 0) {
+      pend.go(deleteThem);
+    }
+
+    function deleteThem(cb) {
       var params = {
         Bucket: s3Params.Bucket,
         Delete: {
-          Objects: objects,
+          Objects: objects.Contents.map(keyOnly),
           Quiet: true,
         },
       };
@@ -398,7 +404,7 @@ Client.prototype.deleteDir = function(s3Params) {
         ee.emit('progress');
         cb();
       });
-    });
+    }
   });
   finder.on('end', function() {
     pend.wait(function() {
@@ -415,7 +421,7 @@ function syncDir(self, params, directionIsToS3) {
   var localFiles = {};
   var s3Objects = {};
   var deleteRemoved = params.deleteRemoved === true;
-  var prefix = ensureSep(removeSlashPrefix(params.s3Params.Prefix));
+  var prefix = ensureSep(params.s3Params.Prefix);
   var listObjectsParams = {
     recursive: true,
     s3Params: {
@@ -571,8 +577,7 @@ function syncDir(self, params, directionIsToS3) {
     });
     finder.on('objects', function(data) {
       data.Contents.forEach(function(object) {
-        var key = removeSlashPrefix(object.Key);
-        key = removeSlashPrefix(key.substring(prefix.length));
+        var key = object.Key.substring(prefix.length);
         s3Objects[key] = object;
       });
     });
@@ -669,6 +674,6 @@ function compareETag(eTag, md5Buffer) {
   return eTag === hex;
 }
 
-function removeSlashPrefix(str) {
-  return str.replace(/^\//, "");
+function keyOnly(item) {
+  return {Key: item.Key};
 }

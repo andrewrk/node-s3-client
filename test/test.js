@@ -8,7 +8,7 @@ var crypto = require('crypto');
 var rimraf = require('rimraf');
 var tempDir = path.join(__dirname, 'tmp');
 var localFile = path.join(tempDir, 'random');
-var remoteRoot = "/node-s3-test/";
+var remoteRoot = "node-s3-test/";
 var remoteFile = path.join(remoteRoot, "file.png");
 var remoteDir = path.join(remoteRoot, "dir1");
 
@@ -221,7 +221,17 @@ describe("s3", function () {
     });
   });
 
-  it("deletes a folder");
+  it("deletes a folder", function(done) {
+    var client = createClient();
+    var s3Params = {
+      Prefix: remoteRoot,
+      Bucket: s3Bucket,
+    };
+    var deleter = client.deleteDir(s3Params);
+    deleter.on('end', function() {
+      done();
+    });
+  });
 
   it("uploadDir with deleteRemove");
 
