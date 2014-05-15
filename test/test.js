@@ -60,6 +60,13 @@ describe("s3", function () {
     rimraf(tempDir, done);
   });
 
+  it("get public URL", function() {
+    var httpsUrl = s3.getPublicUrl("mybucket", "path/to/key");
+    assert.strictEqual(httpsUrl, "https://s3.amazonaws.com/mybucket/path/to/key");
+    var httpUrl = s3.getPublicUrl("mybucket", "path/to/key", true);
+    assert.strictEqual(httpUrl, "http://s3.amazonaws.com/mybucket/path/to/key");
+  });
+
   it("uploads", function(done) {
     createBigFile(4000, function (err, _hexdigest) {
       if (err) return done(err);

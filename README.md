@@ -136,6 +136,16 @@ Creates an S3 client.
  * `s3RetryCount` - how many times to try an S3 operation before giving up.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3 operation.
 
+### s3.getPublicUrl(bucket, key, [insecure])
+
+ * `bucket` S3 bucket
+ * `key` S3 key
+ * `insecure` boolean, whether to use http or https. defaults to false.
+
+returns a string which looks like this:
+
+`https://s3.amazonaws.com/bucket/key`
+
 ### client.uploadFile(params)
 
 See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property

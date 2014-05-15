@@ -1,6 +1,7 @@
 var AWS = require('aws-sdk');
 var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
+var url = require('url');
 var rimraf = require('rimraf');
 var findit = require('findit');
 var Pend = require('pend');
@@ -21,6 +22,8 @@ var MAX_DELETE_COUNT = 1000;
 exports.createClient = function(options) {
   return new Client(options);
 };
+
+exports.getPublicUrl = getPublicUrl;
 
 exports.Client = Client;
 
@@ -767,4 +770,25 @@ function keyOnly(item) {
     Key: item.Key,
     VersionId: item.VersionId,
   };
+}
+
+function encodeSpecialCharacters(filename) {
+  // Note: these characters are valid in URIs, but S3 does not like them for
+  // some reason.
+  return encodeURI(filename).replace(/[!'()* ]/g, function (char) {
+    return '%' + char.charCodeAt(0).toString(16);
+  });
+}
+
+function ensureLeadingSlash(filename) {
+  return filename[0] !== '/' ? '/' + filename : filename;
+}
+
+function getPublicUrl(bucket, key, insecure) {
+  var parts = {
+    protocol: insecure ? "http:" : "https:",
+    hostname: "s3.amazonaws.com",
+    pathname: "/" + bucket + encodeSpecialCharacters(ensureLeadingSlash(key)),
+  };
+  return url.format(parts);
 }
