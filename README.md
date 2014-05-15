@@ -211,6 +211,10 @@ set `recursive` to `true` at the same time as specifying a `Delimiter` because
 this will cause a request per directory. If you want all objects that share a
 prefix, leave the `Delimiter` option `null` or `undefined`.
 
+Be sure that `s3Params.Prefix` ends with a trailing slash (`/`) unless you
+are requesting the top-level listing, in which case `s3Params.Prefix` should
+be empty string.
+
 The difference between using AWS SDK `listObjects` and this one:
 
  * Retry based on the client's retry settings.
