@@ -1,6 +1,7 @@
 var AWS = require('aws-sdk');
 var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
+var quotemeta = require('quotemeta');
 var url = require('url');
 var rimraf = require('rimraf');
 var findit = require('findit');
@@ -18,6 +19,9 @@ var mkdirp = require('mkdirp');
 var MAX_PUTOBJECT_SIZE = 5 * 1024 * 1024 * 1024;
 
 var MAX_DELETE_COUNT = 1000;
+
+var TO_UNIX_RE = new RegExp(quotemeta(path.sep), 'g');
+var UNIX_SPLIT_PATH_RE = /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
 
 exports.createClient = function(options) {
   return new Client(options);
@@ -455,7 +459,7 @@ function syncDir(self, params, directionIsToS3) {
   var s3ObjectsSize = 0;
   var s3Dirs = {};
   var deleteRemoved = params.deleteRemoved === true;
-  var prefix = ensureSep(params.s3Params.Prefix);
+  var prefix = ensureSlash(params.s3Params.Prefix);
   var bucket = params.s3Params.Bucket;
   var listObjectsParams = {
     recursive: true,
@@ -523,7 +527,7 @@ function syncDir(self, params, directionIsToS3) {
     pend.wait(cb);
 
     function downloadOneFile(relPath) {
-      var fullPath = path.join(localDir, relPath);
+      var fullPath = path.join(localDir, toNativeSep(relPath));
       pend.go(function(cb) {
         upDownFileParams.s3Params.Key = prefix + relPath;
         upDownFileParams.localFile = fullPath;
@@ -553,20 +557,20 @@ function syncDir(self, params, directionIsToS3) {
       var localFileStat = localFiles[relPath];
       var s3Object = s3Objects[relPath];
       if (!s3Object) {
-        deleteOneFile(relPath);
+        deleteOneFile(localFileStat);
       }
     }
     for (relPath in localDirs) {
       var localDirStat = localDirs[relPath];
       var s3Dir = s3Dirs[relPath];
       if (!s3Dir) {
-        deleteOneDir(relPath);
+        deleteOneDir(localDirStat);
       }
     }
     pend.wait(cb);
 
-    function deleteOneDir(relPath) {
-      var fullPath = path.join(localDir, relPath);
+    function deleteOneDir(stat) {
+      var fullPath = path.join(localDir, stat.path);
       pend.go(function(cb) {
         rimraf(fullPath, function(err) {
           // ignore ENOENT errors
@@ -576,8 +580,8 @@ function syncDir(self, params, directionIsToS3) {
       });
     }
 
-    function deleteOneFile(relPath) {
-      var fullPath = path.join(localDir, relPath);
+    function deleteOneFile(stat) {
+      var fullPath = path.join(localDir, stat.path);
       pend.go(function(cb) {
         fs.unlink(fullPath, function(err) {
           // ignore ENOENT errors
@@ -603,7 +607,7 @@ function syncDir(self, params, directionIsToS3) {
     pend.wait(cb);
 
     function uploadOneFile(relPath, localFileStat) {
-      var fullPath = path.join(localDir, relPath);
+      var fullPath = path.join(localDir, localFileStat.path);
       pend.go(function(cb) {
         upDownFileParams.s3Params.Key = prefix + relPath;
         upDownFileParams.localFile = fullPath;
@@ -661,9 +665,9 @@ function syncDir(self, params, directionIsToS3) {
         var key = object.Key.substring(prefix.length);
         s3Objects[key] = object;
         s3ObjectsSize += object.Size;
-        var dirname = path.dirname(key);
+        var dirname = unixDirname(key);
         if (dirname === '.') return;
-        s3Dirs[path.dirname(key)] = true;
+        s3Dirs[dirname] = true;
       });
     });
     finder.on('end', function() {
@@ -685,7 +689,8 @@ function syncDir(self, params, directionIsToS3) {
     walker.on('directory', function(dir, stat) {
       var relPath = path.relative(localDir, dir);
       if (relPath === '') return;
-      localDirs[relPath] = stat;
+      stat.path = relPath;
+      localDirs[toUnixSep(relPath)] = stat;
     });
     walker.on('file', function(file, stat) {
       var relPath = path.relative(localDir, file);
@@ -705,7 +710,8 @@ function syncDir(self, params, directionIsToS3) {
         });
         hash.on('data', function(digest) {
           stat.md5sum = digest;
-          localFiles[relPath] = stat;
+          stat.path = relPath;
+          localFiles[toUnixSep(relPath)] = stat;
           localFilesSize += stat.size;
           cb();
         });
@@ -719,8 +725,16 @@ function syncDir(self, params, directionIsToS3) {
   }
 }
 
+function ensureChar(str, c) {
+  return (str[str.length - 1] === c) ? str : (str + c);
+}
+
 function ensureSep(dir) {
-  return (dir[dir.length - 1] === path.sep) ? dir : (dir + path.sep);
+  return ensureChar(dir, path.sep);
+}
+
+function ensureSlash(dir) {
+  return ensureChar(dir, '/');
 }
 
 function doWithRetry(fn, tryCount, delay, cb) {
@@ -791,4 +805,34 @@ function getPublicUrl(bucket, key, insecure) {
     pathname: "/" + bucket + encodeSpecialCharacters(ensureLeadingSlash(key)),
   };
   return url.format(parts);
+}
+
+function toUnixSep(str) {
+  return str.replace(TO_UNIX_RE, "/");
+}
+
+function toNativeSep(str) {
+  return str.replace(/\//g, path.sep);
+}
+
+function unixDirname(path) {
+  var result = unixSplitPath(path);
+  var root = result[0];
+  var dir = result[1];
+
+  if (!root && !dir) {
+    // No dirname whatsoever
+    return '.';
+  }
+
+  if (dir) {
+    // It has a dirname, strip trailing slash
+    dir = dir.substr(0, dir.length - 1);
+  }
+
+  return root + dir;
+}
+
+function unixSplitPath(filename) {
+  return UNIX_SPLIT_PATH_RE.exec(filename).slice(1);
 }

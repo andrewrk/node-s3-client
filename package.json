@@ -33,6 +33,7 @@
     "pend": "^1.1.1",
     "stream-counter": "^1.0.0",
     "mkdirp": "^0.5.0",
-    "rimraf": "^2.2.8"
+    "rimraf": "^2.2.8",
+    "quotemeta": "0.0.0"
   }
 }

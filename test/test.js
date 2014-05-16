@@ -10,8 +10,8 @@ var rimraf = require('rimraf');
 var tempDir = path.join(__dirname, 'tmp');
 var localFile = path.join(tempDir, 'random');
 var remoteRoot = "node-s3-test/";
-var remoteFile = path.join(remoteRoot, "file.png");
-var remoteDir = path.join(remoteRoot, "dir1");
+var remoteFile = remoteRoot + "file.png";
+var remoteDir = remoteRoot + "dir1";
 
 var describe = global.describe;
 var it = global.it;
@@ -130,9 +130,6 @@ describe("s3", function () {
         var md5sum = crypto.createHash('md5');
         reader.on('data', function(data) {
           md5sum.update(data);
-        });
-        reader.on('error', function (err) {
-          done(err);
         });
         reader.on('end', function() {
           assert.strictEqual(md5sum.digest('hex'), hexdigest);
