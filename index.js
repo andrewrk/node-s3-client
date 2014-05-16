@@ -459,7 +459,7 @@ function syncDir(self, params, directionIsToS3) {
   var s3ObjectsSize = 0;
   var s3Dirs = {};
   var deleteRemoved = params.deleteRemoved === true;
-  var prefix = ensureSlash(params.s3Params.Prefix);
+  var prefix = params.s3Params.Prefix ? ensureSlash(params.s3Params.Prefix) : '';
   var bucket = params.s3Params.Bucket;
   var listObjectsParams = {
     recursive: true,
