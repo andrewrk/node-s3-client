@@ -349,6 +349,15 @@ And these events:
 
 ## History
 
+### 1.1.1
+
+ * fix handling of directory seperator in Windows
+ * allow `uploadDir` and `downloadDir` with empty `Prefix`
+
+### 1.1.0
+
+ * Add an API function to get the HTTP url to an S3 resource
+
 ### 1.0.0
 
  * complete module rewrite
