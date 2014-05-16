@@ -115,8 +115,7 @@ uploader.on('error', function(err) {
   console.error("unable to sync:", err.stack);
 });
 uploader.on('progress', function() {
-  console.log("progress", uploader.progressMd5Amount,
-            uploader.progressAmount, uploader.progressTotal);
+  console.log("progress", uploader.progressAmount, uploader.progressTotal);
 });
 uploader.on('end', function() {
   console.log("done uploading");
