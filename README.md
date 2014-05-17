@@ -385,6 +385,12 @@ And these events:
 
 ## History
 
+### 1.2.1
+
+ * fix `listObjects` for greater than 1000 objects
+ * `downloadDir` supports `getS3Params` parameter
+ * `uploadDir` and `downloadDir` expose `objectsFound` progress
+
 ### 1.2.0
 
  * `uploadDir` accepts `getS3Params` function parameter
