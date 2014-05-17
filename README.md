@@ -285,9 +285,9 @@ Syncs an entire directory to S3.
 
 `params`:
 
+ * `localDir` - source path on local file system to sync to S3
  * `deleteRemoved` - delete s3 objects with no corresponding local file.
    default false
- * `localDir` - source path on local file system to sync to S3
  * `getS3Params` - optional function which will be called for every file that
    needs to be uploaded. See below.
  * `s3Params`
@@ -323,11 +323,29 @@ Syncs an entire directory from S3.
 
 `params`:
 
- * `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
  * `localDir` - destination directory on local file system to sync to
+ * `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
+ * `getS3Params` - optional function which will be called for every object that
+   needs to be downloaded. See below.
  * `s3Params`
    - `Prefix` (required)
    - `Bucket` (required)
+
+```js
+function getS3Params(localFile, s3Object, callback) {
+  // localFile is the destination path where the object will be written to
+  // s3Object is same as one element in the `Contents` array from here:
+  // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-property
+
+  // call callback like this:
+  var err = new Error(...); // only if there is an error
+  var s3Params = { // if there is no error
+    VersionId: "abcd", // just an example
+  };
+  // pass `null` for `s3Params` if you want to skip dowlnoading this object.
+  callback(err, s3Params);
+}
+```
 
 Returns an `EventEmitter` with these properties:
 

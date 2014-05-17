@@ -348,7 +348,8 @@ Client.prototype.listObjects = function(params) {
       });
 
       function findNext1000(cb) {
-        findAllS3Objects(data.NextMarker, prefix, cb);
+        var nextMarker = data.NextMarker || data.Contents[data.Contents.length - 1].Key;
+        findAllS3Objects(nextMarker, prefix, cb);
       }
 
       function recurse(dirObj) {
@@ -481,6 +482,7 @@ function syncDir(self, params, directionIsToS3) {
 
   ee.progressTotal = 0;
   ee.progressAmount = 0;
+  ee.objectsFound = 0;
 
   var pend = new Pend();
   pend.go(findAllS3Objects);
@@ -519,32 +521,53 @@ function syncDir(self, params, directionIsToS3) {
       var s3Object = s3Objects[relPath];
       var localFileStat = localFiles[relPath];
       if (!localFileStat || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
-        downloadOneFile(relPath);
+        downloadOneFile(relPath, s3Object);
       }
     }
     pend.wait(cb);
 
-    function downloadOneFile(relPath) {
+    function downloadOneFile(relPath, s3Object) {
       var fullPath = path.join(localDir, toNativeSep(relPath));
       pend.go(function(cb) {
-        ee.progressTotal += s3Object.Size;
-        upDownFileParams.s3Params.Key = prefix + relPath;
-        upDownFileParams.localFile = fullPath;
-        upDownFileParams.localFileStat = null;
-        var downloader = self.downloadFile(upDownFileParams);
-        var prevAmountDone = 0;
-        downloader.on('error', function(err) {
-          cb(err);
-        });
-        downloader.on('progress', function() {
-          var delta = downloader.progressAmount - prevAmountDone;
-          prevAmountDone = downloader.progressAmount;
-          ee.progressAmount += delta;
-          ee.emit('progress');
-        });
-        downloader.on('end', function() {
-          cb();
-        });
+        if (getS3Params) {
+          getS3Params(fullPath, s3Object, haveS3Params);
+        } else {
+          startDownload();
+        }
+
+        function haveS3Params(err, s3Params) {
+          if (err) return cb(err);
+
+          if (!s3Params) {
+            //user has decided to skip this file
+            cb();
+            return;
+          }
+
+          upDownFileParams.s3Params = extend(extend({}, baseUpDownS3Params), s3Params);
+          startDownload();
+        }
+
+        function startDownload() {
+          ee.progressTotal += s3Object.Size;
+          upDownFileParams.s3Params.Key = prefix + relPath;
+          upDownFileParams.localFile = fullPath;
+          upDownFileParams.localFileStat = null;
+          var downloader = self.downloadFile(upDownFileParams);
+          var prevAmountDone = 0;
+          downloader.on('error', function(err) {
+            cb(err);
+          });
+          downloader.on('progress', function() {
+            var delta = downloader.progressAmount - prevAmountDone;
+            prevAmountDone = downloader.progressAmount;
+            ee.progressAmount += delta;
+            ee.emit('progress');
+          });
+          downloader.on('end', function() {
+            cb();
+          });
+        }
       });
     }
   }
@@ -681,6 +704,8 @@ function syncDir(self, params, directionIsToS3) {
       cb(err);
     });
     finder.on('data', function(data) {
+      ee.objectsFound += data.Contents.length;
+      ee.emit('progress');
       data.Contents.forEach(function(object) {
         var key = object.Key.substring(prefix.length);
         s3Objects[key] = object;
