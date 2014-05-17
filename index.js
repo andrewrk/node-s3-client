@@ -452,6 +452,7 @@ function syncDir(self, params, directionIsToS3) {
   var ee = new EventEmitter();
 
   var localDir = params.localDir;
+  var getS3Params = params.getS3Params;
   var localFiles = {};
   var localFilesSize = 0;
   var localDirs = {};
@@ -470,10 +471,11 @@ function syncDir(self, params, directionIsToS3) {
       Prefix: prefix,
     },
   };
+  var baseUpDownS3Params = extend({}, params.s3Params);
   var upDownFileParams = {
     localFile: null,
     localFileStat: null,
-    s3Params: extend({}, params.s3Params),
+    s3Params: baseUpDownS3Params,
   };
   delete upDownFileParams.s3Params.Prefix;
 
@@ -495,11 +497,9 @@ function syncDir(self, params, directionIsToS3) {
 
     var pend = new Pend();
     if (directionIsToS3) {
-      ee.progressTotal = localFilesSize;
       if (deleteRemoved) pend.go(deleteRemovedObjects);
       pend.go(uploadDifferentObjects);
     } else {
-      ee.progressTotal = s3ObjectsSize;
       if (deleteRemoved) pend.go(deleteRemovedLocalFiles);
       pend.go(downloadDifferentObjects);
     }
@@ -520,8 +520,6 @@ function syncDir(self, params, directionIsToS3) {
       var localFileStat = localFiles[relPath];
       if (!localFileStat || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
         downloadOneFile(relPath);
-      } else {
-        ee.progressAmount += localFileStat.size;
       }
     }
     pend.wait(cb);
@@ -529,6 +527,7 @@ function syncDir(self, params, directionIsToS3) {
     function downloadOneFile(relPath) {
       var fullPath = path.join(localDir, toNativeSep(relPath));
       pend.go(function(cb) {
+        ee.progressTotal += s3Object.Size;
         upDownFileParams.s3Params.Key = prefix + relPath;
         upDownFileParams.localFile = fullPath;
         upDownFileParams.localFileStat = null;
@@ -599,8 +598,6 @@ function syncDir(self, params, directionIsToS3) {
       var s3Object = s3Objects[relPath];
       if (!s3Object || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
         uploadOneFile(relPath, localFileStat);
-      } else {
-        ee.progressAmount += s3Object.Size;
       }
     }
     ee.emit('progress');
@@ -609,23 +606,46 @@ function syncDir(self, params, directionIsToS3) {
     function uploadOneFile(relPath, localFileStat) {
       var fullPath = path.join(localDir, localFileStat.path);
       pend.go(function(cb) {
-        upDownFileParams.s3Params.Key = prefix + relPath;
-        upDownFileParams.localFile = fullPath;
-        upDownFileParams.localFileStat = localFileStat;
-        var uploader = self.uploadFile(upDownFileParams);
-        var prevAmountDone = 0;
-        uploader.on('error', function(err) {
-          cb(err);
-        });
-        uploader.on('progress', function() {
-          var delta = uploader.progressAmount - prevAmountDone;
-          prevAmountDone = uploader.progressAmount;
-          ee.progressAmount += delta;
-          ee.emit('progress');
-        });
-        uploader.on('end', function() {
-          cb();
-        });
+        if (getS3Params) {
+          getS3Params(fullPath, localFileStat, haveS3Params);
+        } else {
+          upDownFileParams.s3Params = baseUpDownS3Params;
+          startUpload();
+        }
+
+        function haveS3Params(err, s3Params) {
+          if (err) return cb(err);
+
+          if (!s3Params) {
+            // user has decided to skip this file
+            cb();
+            return;
+          }
+
+          upDownFileParams.s3Params = extend(extend({}, baseUpDownS3Params), s3Params);
+          startUpload();
+        }
+
+        function startUpload() {
+          ee.progressTotal += localFileStat.size;
+          upDownFileParams.s3Params.Key = prefix + relPath;
+          upDownFileParams.localFile = fullPath;
+          upDownFileParams.localFileStat = localFileStat;
+          var uploader = self.uploadFile(upDownFileParams);
+          var prevAmountDone = 0;
+          uploader.on('error', function(err) {
+            cb(err);
+          });
+          uploader.on('progress', function() {
+            var delta = uploader.progressAmount - prevAmountDone;
+            prevAmountDone = uploader.progressAmount;
+            ee.progressAmount += delta;
+            ee.emit('progress');
+          });
+          uploader.on('end', function() {
+            cb();
+          });
+        }
       });
     }
   }

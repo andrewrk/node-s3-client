@@ -285,11 +285,26 @@ Syncs an entire directory to S3.
 
 `params`:
 
- * `deleteRemoved` - delete s3 objects with no corresponding local file. default false
+ * `deleteRemoved` - delete s3 objects with no corresponding local file.
+   default false
  * `localDir` - source path on local file system to sync to S3
+ * `getS3Params` - optional function which will be called for every file that
+   needs to be uploaded. See below.
  * `s3Params`
    - `Prefix` (required)
    - `Bucket` (required)
+
+```js
+function getS3Params(localFile, stat, callback) {
+  // call callback like this:
+  var err = new Error(...); // only if there is an error
+  var s3Params = { // if there is no error
+    ContentType: getMimeType(localFile), // just an example
+  };
+  // pass `null` for `s3Params` if you want to skip uploading this file.
+  callback(err, s3Params);
+}
+```
 
 Returns an `EventEmitter` with these properties:
 
