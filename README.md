@@ -367,6 +367,10 @@ And these events:
 
 ## History
 
+### 1.2.0
+
+ * `uploadDir` accepts `getS3Params` function parameter
+
 ### 1.1.1
 
  * fix handling of directory seperator in Windows
