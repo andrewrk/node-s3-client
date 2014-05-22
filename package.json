@@ -28,7 +28,7 @@
     "ncp": "^0.5.1"
   },
   "dependencies": {
-    "aws-sdk": "^2.0.0-rc.16",
+    "aws-sdk": "^2.0.0-rc.18",
     "findit": "^1.2.0",
     "pend": "^1.1.1",
     "stream-counter": "^1.0.0",

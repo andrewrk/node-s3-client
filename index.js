@@ -458,6 +458,31 @@ Client.prototype.deleteDir = function(s3Params) {
   return ee;
 };
 
+Client.prototype.copyObject = function(_s3Params) {
+  var self = this;
+  var ee = new EventEmitter();
+  var s3Params = extend({}, _s3Params);
+  doWithRetry(doCopyWithPend, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
+    if (err) {
+      ee.emit('error', err);
+    } else {
+      ee.emit('end', data);
+    }
+  });
+  function doCopyWithPend(cb) {
+    self.s3Pend.go(function(pendCb) {
+      doTheCopy(function(err, data) {
+        pendCb();
+        cb(err, data);
+      });
+    });
+  }
+  function doTheCopy(cb) {
+    self.s3.copyObject(s3Params, cb);
+  }
+  return ee;
+};
+
 function syncDir(self, params, directionIsToS3) {
   var ee = new EventEmitter();
 
@@ -799,11 +824,15 @@ function doWithRetry(fn, tryCount, delay, cb) {
   function tryOnce() {
     fn(function(err, result) {
       if (err) {
-        tryIndex += 1;
-        if (tryIndex >= tryCount) {
+        if (err.retryable === false) {
           cb(err);
         } else {
-          setTimeout(tryOnce, delay);
+          tryIndex += 1;
+          if (tryIndex >= tryCount) {
+            cb(err);
+          } else {
+            setTimeout(tryOnce, delay);
+          }
         }
       } else {
         cb(null, result);

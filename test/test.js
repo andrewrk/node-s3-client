@@ -11,6 +11,7 @@ var tempDir = path.join(__dirname, 'tmp');
 var localFile = path.join(tempDir, 'random');
 var remoteRoot = "node-s3-test/";
 var remoteFile = remoteRoot + "file.png";
+var remoteFile2 = remoteRoot + "file2.png";
 var remoteDir = remoteRoot + "dir1";
 
 var describe = global.describe;
@@ -160,6 +161,19 @@ describe("s3", function () {
     });
   });
 
+  it("copies an object", function(done) {
+    var s3Params = {
+      Bucket: s3Bucket,
+      CopySource: s3Bucket + '/' + remoteFile,
+      Key: remoteFile2,
+    };
+    var client = createClient();
+    var copier = client.copyObject(s3Params);
+    copier.on('end', function(data) {
+      done();
+    });
+  });
+
   it("deletes an object", function(done) {
       var client = createClient();
       var params = {
@@ -168,6 +182,9 @@ describe("s3", function () {
           Objects: [
             {
               Key: remoteFile,
+            },
+            {
+              Key: remoteFile2,
             },
           ],
         },

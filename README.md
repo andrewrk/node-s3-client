@@ -379,6 +379,22 @@ And these events:
  * `'end'` - emitted when all objects are deleted.
  * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
 
+### client.copyObject(s3Params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#copyObject-property
+
+`s3Params` are the same. Don't forget that `CopySource` must contain the
+source bucket name as well as the source key name.
+
+The difference between using AWS SDK `copyObject` and this one will:
+
+ * Retry based on the client's retry settings.
+
+Returns an `EventEmitter` with these events:
+
+ * `'error' (err)`
+ * `'end' (data)`
+
 ## Testing
 
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`
