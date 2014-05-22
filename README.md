@@ -122,6 +122,17 @@ uploader.on('end', function() {
 });
 ```
 
+## Tips
+
+ * Consider adding [graceful-fs](https://github.com/isaacs/node-graceful-fs) to
+   your application. This will improve performance when using the `uploadDir`
+   and `downloadDir` functions.
+ * Consider increasing the ulimit for the number of open files. This will also
+   improve performance when using the `uploadDir` and `downloadDir` functions.
+ * Consider increasing the socket pool size in the `http` and `https` global
+   agents. This will improve bandwidth when using `uploadDir` and `downloadDir`
+   functions.
+
 ## API Documentation
 
 ### s3.createClient(options)
