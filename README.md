@@ -406,6 +406,22 @@ Returns an `EventEmitter` with these events:
  * `'error' (err)`
  * `'end' (data)`
 
+### client.moveObject(s3Params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#copyObject-property
+
+`s3Params` are the same. Don't forget that `CopySource` must contain the
+source bucket name as well as the source key name.
+
+Under the hood, this uses `copyObject` and then `deleteObjects` only if the
+copy succeeded.
+
+Returns an `EventEmitter` with these events:
+
+ * `'error' (err)`
+ * `'copySuccess' (data)`
+ * `'end' (data)`
+
 ## Testing
 
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`

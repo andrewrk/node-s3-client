@@ -462,6 +462,7 @@ Client.prototype.copyObject = function(_s3Params) {
   var self = this;
   var ee = new EventEmitter();
   var s3Params = extend({}, _s3Params);
+  delete s3Params.MFA;
   doWithRetry(doCopyWithPend, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
     if (err) {
       ee.emit('error', err);
@@ -480,6 +481,47 @@ Client.prototype.copyObject = function(_s3Params) {
   function doTheCopy(cb) {
     self.s3.copyObject(s3Params, cb);
   }
+  return ee;
+};
+
+Client.prototype.moveObject = function(s3Params) {
+  var self = this;
+  var ee = new EventEmitter();
+  var copier = self.copyObject(s3Params);
+  var copySource = s3Params.CopySource;
+  var mfa = s3Params.MFA;
+  copier.on('error', function(err) {
+    ee.emit('error', err);
+  });
+  copier.on('end', function(data) {
+    ee.emit('copySuccess', data);
+    var slashIndex = copySource.indexOf('/');
+    var sourceBucket = copySource.substring(0, slashIndex);
+    var sourceKey = copySource.substring(slashIndex + 1);
+    var deleteS3Params = {
+      Bucket: sourceBucket,
+      Delete: {
+        Objects: [
+          {
+            Key: sourceKey,
+          },
+        ],
+        Quiet: true,
+      },
+      MFA: mfa,
+    };
+    var deleter = self.deleteObjects(deleteS3Params);
+    deleter.on('error', function(err) {
+      ee.emit('error', err);
+    });
+    var deleteData;
+    deleter.on('data', function(data) {
+      deleteData = data;
+    });
+    deleter.on('end', function() {
+      ee.emit('end', deleteData);
+    });
+  });
   return ee;
 };
 
