@@ -223,7 +223,7 @@ Client.prototype.downloadFile = function(params) {
       return;
     }
 
-    doWithRetry(doTheDownload, self.s3RetryCount, self.s3RetryDelay, function(err) {
+    doWithRetry(doDownloadWithPend, self.s3RetryCount, self.s3RetryDelay, function(err) {
       if (err) {
         downloader.emit('error', err);
         return;
@@ -233,6 +233,15 @@ Client.prototype.downloadFile = function(params) {
   });
 
   return downloader;
+
+  function doDownloadWithPend(cb) {
+    self.s3Pend.go(function(pendCb) {
+      doTheDownload(function(err) {
+        pendCb();
+        cb(err);
+      });
+    });
+  }
 
   function doTheDownload(cb) {
     var request = self.s3.getObject(s3Params);
