@@ -142,6 +142,7 @@ Client.prototype.uploadFile = function(params) {
       inStream.on('error', function(err) {
         cb(err);
       });
+      uploader.emit('stream', inStream);
       var hash = crypto.createHash('md5');
       hash.on('data', function(digest) {
         md5sum = digest;

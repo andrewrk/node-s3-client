@@ -192,6 +192,9 @@ And these events:
    - `data` is the same object that you get from `putObject` in AWS SDK
  * `'progress'` - emitted when `progressMd5Amount`, `progressAmount`, and
    `progressTotal` properties change.
+ * `'stream' (stream)` - emitted when a `ReadableStream` for `localFile` has
+   been opened. Be aware that this might fire multiple times if a request to S3
+   must be retried.
 
 ### client.downloadFile(params)
 
