@@ -431,6 +431,15 @@ Returns an `EventEmitter` with these events:
 
 ## History
 
+### 1.3.0
+
+ * `downloadFile` respects `maxAsyncS3`
+ * Add `copyObject` API
+ * AWS JS SDK updated to 2.0.0-rc.18
+ * errors with `retryable` set to `false` are not retried
+ * Add `moveObject` API
+ * `uploadFile` emits a `stream` event.
+
 ### 1.2.1
 
  * fix `listObjects` for greater than 1000 objects
