@@ -150,15 +150,35 @@ Creates an S3 client.
  * `s3RetryCount` - how many times to try an S3 operation before giving up.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3 operation.
 
-### s3.getPublicUrl(bucket, key, [insecure])
+### s3.getPublicUrl(bucket, key, [insecure], [bucketLocation])
 
  * `bucket` S3 bucket
  * `key` S3 key
  * `insecure` boolean, whether to use http or https. defaults to false.
+ * `bucketLocation` string, one of these:
+   - "" (default) - US Standard
+   - "eu-west-1"
+   - "us-west-1"
+   - "us-west-2"
+   - "ap-southeast-1"
+   - "ap-southeast-2"
+   - "ap-northeast-1"
+   - "sa-east-1"
+
+You can find out your bucket location programatically by using this API:
+http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getBucketLocation-property
 
 returns a string which looks like this:
 
 `https://s3.amazonaws.com/bucket/key`
+
+or maybe this if you are not in US Standard:
+
+`https://s3-eu-west-1.amazonaws.com/bucket/key`
+
+or maybe this if you have insecure on:
+
+`http://bucket.s3.amazonaws.com/key`
 
 ### client.uploadFile(params)
 

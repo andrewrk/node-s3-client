@@ -920,16 +920,22 @@ function encodeSpecialCharacters(filename) {
   });
 }
 
-function ensureLeadingSlash(filename) {
-  return filename[0] !== '/' ? '/' + filename : filename;
-}
-
-function getPublicUrl(bucket, key, insecure) {
-  var parts = {
-    protocol: insecure ? "http:" : "https:",
-    hostname: "s3.amazonaws.com",
-    pathname: "/" + bucket + encodeSpecialCharacters(ensureLeadingSlash(key)),
-  };
+function getPublicUrl(bucket, key, insecure, bucketLocation) {
+  var parts;
+  if (insecure) {
+    parts = {
+      protocol: "http:",
+      hostname: bucket + ".s3.amazonaws.com",
+      pathname: "/" + encodeSpecialCharacters(key),
+    };
+  } else {
+    var hostnamePrefix = bucketLocation ? ("s3-" + bucketLocation) : "s3";
+    parts = {
+      protocol: "https:",
+      hostname: hostnamePrefix + ".amazonaws.com",
+      pathname: "/" + bucket + "/" + encodeSpecialCharacters(key),
+    };
+  }
   return url.format(parts);
 }
 

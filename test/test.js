@@ -66,7 +66,12 @@ describe("s3", function () {
     var httpsUrl = s3.getPublicUrl("mybucket", "path/to/key");
     assert.strictEqual(httpsUrl, "https://s3.amazonaws.com/mybucket/path/to/key");
     var httpUrl = s3.getPublicUrl("mybucket", "path/to/key", true);
-    assert.strictEqual(httpUrl, "http://s3.amazonaws.com/mybucket/path/to/key");
+    assert.strictEqual(httpUrl, "http://mybucket.s3.amazonaws.com/path/to/key");
+    // treat slashes literally
+    httpsUrl = s3.getPublicUrl("marina-restaurant.at", "uploads/about_restaurant_10.jpg",
+      false, "eu-west-1");
+    assert.strictEqual(httpsUrl,
+      "https://s3-eu-west-1.amazonaws.com/marina-restaurant.at/uploads/about_restaurant_10.jpg")
   });
 
   it("uploads", function(done) {
