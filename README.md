@@ -455,6 +455,11 @@ Returns an `EventEmitter` with these events:
 
 ## History
 
+### 2.0.0
+
+ * `getPublicUrl` API changed to support bucket regions. Use `getPublicUrlHttp`
+   if you want an insecure URL.
+
 ### 1.3.0
 
  * `downloadFile` respects `maxAsyncS3`
