@@ -150,11 +150,10 @@ Creates an S3 client.
  * `s3RetryCount` - how many times to try an S3 operation before giving up.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3 operation.
 
-### s3.getPublicUrl(bucket, key, [insecure], [bucketLocation])
+### s3.getPublicUrl(bucket, key, [bucketLocation])
 
  * `bucket` S3 bucket
  * `key` S3 key
- * `insecure` boolean, whether to use http or https. defaults to false.
  * `bucketLocation` string, one of these:
    - "" (default) - US Standard
    - "eu-west-1"
@@ -176,7 +175,12 @@ or maybe this if you are not in US Standard:
 
 `https://s3-eu-west-1.amazonaws.com/bucket/key`
 
-or maybe this if you have insecure on:
+### s3.getPublicUrlHttp(bucket, key)
+
+ * `bucket` S3 Bucket
+ * `key` S3 Key
+
+Works for any region, and returns a string which looks like this:
 
 `http://bucket.s3.amazonaws.com/key`
 

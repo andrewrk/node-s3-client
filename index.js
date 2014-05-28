@@ -28,6 +28,7 @@ exports.createClient = function(options) {
 };
 
 exports.getPublicUrl = getPublicUrl;
+exports.getPublicUrlHttp = getPublicUrlHttp;
 
 exports.Client = Client;
 
@@ -920,22 +921,22 @@ function encodeSpecialCharacters(filename) {
   });
 }
 
-function getPublicUrl(bucket, key, insecure, bucketLocation) {
-  var parts;
-  if (insecure) {
-    parts = {
-      protocol: "http:",
-      hostname: bucket + ".s3.amazonaws.com",
-      pathname: "/" + encodeSpecialCharacters(key),
-    };
-  } else {
-    var hostnamePrefix = bucketLocation ? ("s3-" + bucketLocation) : "s3";
-    parts = {
-      protocol: "https:",
-      hostname: hostnamePrefix + ".amazonaws.com",
-      pathname: "/" + bucket + "/" + encodeSpecialCharacters(key),
-    };
-  }
+function getPublicUrl(bucket, key, bucketLocation) {
+  var hostnamePrefix = bucketLocation ? ("s3-" + bucketLocation) : "s3";
+  var parts = {
+    protocol: "https:",
+    hostname: hostnamePrefix + ".amazonaws.com",
+    pathname: "/" + bucket + "/" + encodeSpecialCharacters(key),
+  };
+  return url.format(parts);
+}
+
+function getPublicUrlHttp(bucket, key) {
+  var parts = {
+    protocol: "http:",
+    hostname: bucket + ".s3.amazonaws.com",
+    pathname: "/" + encodeSpecialCharacters(key),
+  };
   return url.format(parts);
 }
 
