@@ -560,6 +560,8 @@ function syncDir(self, params, directionIsToS3) {
 
   ee.progressTotal = 0;
   ee.progressAmount = 0;
+  ee.progressMd5Amount = 0;
+  ee.progressMd5Total = 0;
   ee.objectsFound = 0;
 
   var pend = new Pend();
@@ -822,6 +824,7 @@ function syncDir(self, params, directionIsToS3) {
         localFiles[relPath] = stat;
         return;
       }
+      ee.progressMd5Total += stat.size;
       pend.go(function(cb) {
         var inStream = fs.createReadStream(file);
         var hash = crypto.createHash('md5');
@@ -836,6 +839,8 @@ function syncDir(self, params, directionIsToS3) {
           stat.path = relPath;
           localFiles[toUnixSep(relPath)] = stat;
           localFilesSize += stat.size;
+          ee.progressMd5Amount += stat.size;
+          ee.emit('progress');
           cb();
         });
         inStream.pipe(hash);
