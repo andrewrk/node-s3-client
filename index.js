@@ -563,6 +563,7 @@ function syncDir(self, params, directionIsToS3) {
   ee.progressMd5Amount = 0;
   ee.progressMd5Total = 0;
   ee.objectsFound = 0;
+  ee.startedTransfer = false;
 
   var pend = new Pend();
   pend.go(findAllS3Objects);
@@ -585,6 +586,7 @@ function syncDir(self, params, directionIsToS3) {
       if (deleteRemoved) pend.go(deleteRemovedLocalFiles);
       pend.go(downloadDifferentObjects);
     }
+    ee.startedTransfer = true;
     ee.emit('progress');
     pend.wait(function(err) {
       if (err) {
