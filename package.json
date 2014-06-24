@@ -23,6 +23,9 @@
   ],
   "author": "Andrew Kelley",
   "license": "BSD",
+  "engines": {
+    "node": ">=0.10.20"
+  },
   "devDependencies": {
     "mocha": "^1.18.2",
     "ncp": "^0.5.1"
