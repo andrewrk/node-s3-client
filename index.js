@@ -1,6 +1,6 @@
 var AWS = require('aws-sdk');
 var EventEmitter = require('events').EventEmitter;
-var fs = require('fs');
+var fs = require('graceful-fs');
 var quotemeta = require('quotemeta');
 var url = require('url');
 var rimraf = require('rimraf');
