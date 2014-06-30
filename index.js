@@ -192,14 +192,7 @@ Client.prototype.uploadFile = function(params) {
         uploader.emit('progress');
       });
       inStream.pipe(counter);
-      // sometimes AWS SDK decides to call the callback twice :-(
-      var gotCallback = false;
       self.s3.putObject(s3Params, function(err, data) {
-        if (gotCallback) {
-          console.error("Warning: AWS SDK JS called callback twice.");
-          return;
-        }
-        gotCallback = true;
         pendCb();
         if (errorOccurred) return;
         if (err) {
