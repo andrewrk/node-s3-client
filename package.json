@@ -27,16 +27,16 @@
     "node": ">=0.10.20"
   },
   "devDependencies": {
-    "mocha": "^1.18.2",
-    "ncp": "^0.5.1"
+    "mocha": "~1.18.2",
+    "ncp": "~0.5.1"
   },
   "dependencies": {
-    "aws-sdk": "^2.0.0-rc.19",
-    "findit": "^1.2.0",
-    "mkdirp": "^0.5.0",
-    "pend": "^1.1.1",
-    "quotemeta": "0.0.0",
-    "rimraf": "^2.2.8",
-    "stream-counter": "^1.0.0"
+    "aws-sdk": "~2.0.4",
+    "findit": "~1.2.0",
+    "mkdirp": "~0.5.0",
+    "pend": "~1.1.1",
+    "quotemeta": "~0.0.0",
+    "rimraf": "~2.2.8",
+    "stream-counter": "~1.0.0"
   }
 }
