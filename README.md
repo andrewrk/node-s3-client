@@ -21,9 +21,10 @@ See also the companion CLI tool, [s3-cli](https://github.com/andrewrk/node-s3-cl
 var s3 = require('s3');
 
 var client = s3.createClient({
-  maxAsyncS3: Infinity,
-  s3RetryCount: 3,
-  s3RetryDelay: 1000,
+  maxAsyncS3: 20,     // this is the default
+  s3RetryCount: 3     // this is the default
+  s3RetryDelay: 1000, // this is the default
+  maxAsyncDisk: 1,    // this is the default
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
@@ -124,14 +125,13 @@ uploader.on('end', function() {
 
 ## Tips
 
- * Consider adding [graceful-fs](https://github.com/isaacs/node-graceful-fs) to
-   your application. This will improve performance when using the `uploadDir`
-   and `downloadDir` functions.
- * Consider increasing the ulimit for the number of open files. This will also
-   improve performance when using the `uploadDir` and `downloadDir` functions.
  * Consider increasing the socket pool size in the `http` and `https` global
    agents. This will improve bandwidth when using `uploadDir` and `downloadDir`
-   functions.
+   functions. For example:
+
+   ```js
+   http.globalAgent.maxSockets = https.globalAgent.maxSockets = 30;
+   ```
 
 ## API Documentation
 
@@ -142,13 +142,15 @@ Creates an S3 client.
 `options`:
 
  * `s3Client` - optional, an instance of `AWS.S3`. Leave blank if you provide `s3Options`.
- * `s3Options` - optional, provide this if you don't provide `s3Client`.
+ * `s3Options` - optional. leave blank if you provide `s3Client`.
    - See AWS SDK documentation for available options which are passed to `new AWS.S3()`:
      http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
  * `maxAsyncS3` - maximum number of simultaneous requests this client will
-   ever have open to S3. defaults to `Infinity`.
+   ever have open to S3. defaults to `20`.
  * `s3RetryCount` - how many times to try an S3 operation before giving up.
- * `s3RetryDelay` - how many milliseconds to wait before retrying an S3 operation.
+   Default 3.
+ * `s3RetryDelay` - how many milliseconds to wait before retrying an S3
+   operation. Default 1000.
 
 ### s3.getPublicUrl(bucket, key, [bucketLocation])
 
@@ -328,6 +330,7 @@ Syncs an entire directory to S3.
    default false
  * `getS3Params` - optional function which will be called for every file that
    needs to be uploaded. See below.
+ * `followSymLinks` - defaults to `false`
  * `s3Params`
    - `Prefix` (required)
    - `Bucket` (required)
@@ -354,6 +357,21 @@ And these events:
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
  * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
+
+`uploadDir` works like this:
+
+ 0. Start listing all S3 objects for the target `Prefix`. S3 guarantees
+    returned objects to be in sorted order.
+ 0. Meanwhile, recursively find all files in `localDir`.
+ 0. Once all local files are found, we sort them (the same way that S3 sorts).
+ 0. Next we iterate over the sorted local file list one at a time, computing
+    MD5 sums.
+ 0. Now S3 object listing and MD5 sum computing are happening in parallel. As
+    each operation progresses we compare both sorted lists side-by-side,
+    iterating over them one at a time, uploading files whose MD5 sums don't
+    match the remote object (or the remote object is missing), and, if
+    `deleteRemoved` is set, deleting remote objects whose corresponding local
+    files are missing.
 
 ### client.downloadDir(params)
 
@@ -395,6 +413,21 @@ And these events:
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
  * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
+
+`downloadDir` works like this:
+
+ 0. Start listing all S3 objects for the target `Prefix`. S3 guarantees
+    returned objects to be in sorted order.
+ 0. Meanwhile, recursively find all files in `localDir`.
+ 0. Once all local files are found, we sort them (the same way that S3 sorts).
+ 0. Next we iterate over the sorted local file list one at a time, computing
+    MD5 sums.
+ 0. Now S3 object listing and MD5 sum computing are happening in parallel. As
+    each operation progresses we compare both sorted lists side-by-side,
+    iterating over them one at a time, downloading objects whose MD5 sums don't
+    match the local file (or the local file is missing), and, if
+    `deleteRemoved` is set, deleting local files whose corresponding objects
+    are missing.
 
 ### client.deleteDir(s3Params)
 

@@ -1,7 +1,6 @@
 var AWS = require('aws-sdk');
 var EventEmitter = require('events').EventEmitter;
 var fs = require('graceful-fs');
-var quotemeta = require('quotemeta');
 var url = require('url');
 var rimraf = require('rimraf');
 var findit = require('findit');
@@ -36,9 +35,10 @@ function Client(options) {
   options = options || {};
   this.s3 = options.s3Client || new AWS.S3(options.s3Options);
   this.s3Pend = new Pend();
-  this.s3Pend.max = options.maxAsyncS3 || Infinity;
+  this.s3Pend.max = options.maxAsyncS3 || 20;
   this.s3RetryCount = options.s3RetryCount || 3;
   this.s3RetryDelay = options.s3RetryDelay || 1000;
+  this.maxAsyncDisk = options.maxAsyncDisk || 1;
 }
 
 Client.prototype.deleteObjects = function(s3Params) {
@@ -807,6 +807,7 @@ function syncDir(self, params, directionIsToS3) {
     var walker = findit(dirWithSlash);
     var errorOccurred = false;
     var pend = new Pend();
+    pend.max = self.maxAsyncDisk;
     walker.on('error', function(err) {
       if (errorOccurred) return;
       errorOccurred = true;
@@ -975,4 +976,8 @@ function unixDirname(path) {
 
 function unixSplitPath(filename) {
   return UNIX_SPLIT_PATH_RE.exec(filename).slice(1);
+}
+
+function quotemeta(str) {
+    return String(str).replace(/(\W)/g, '\\$1');
 }
