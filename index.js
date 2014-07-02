@@ -656,7 +656,7 @@ function syncDir(self, params, directionIsToS3) {
       } else {
         s3ObjectCursor += 1;
         localFileCursor += 1;
-        process.nextTick(checkDoMoreWork);
+        setImmediate(checkDoMoreWork);
       }
     } else {
       throw new Error("TODO");
@@ -664,6 +664,7 @@ function syncDir(self, params, directionIsToS3) {
 
     function uploadLocalFile() {
       localFileCursor += 1;
+      setImmediate(checkDoMoreWork);
       var fullPath = path.join(localDir, localFileStat.path);
 
       if (getS3Params) {
@@ -707,6 +708,7 @@ function syncDir(self, params, directionIsToS3) {
 
     function deleteS3Object() {
       s3ObjectCursor += 1;
+      setImmediate(checkDoMoreWork);
       if (deleteRemoved) return;
       objectsToDelete.push({Key: s3Object.Key});
       ee.deleteTotal += 1;
@@ -782,7 +784,7 @@ function syncDir(self, params, directionIsToS3) {
       }
       if (localFileStat.md5sum || localFileStat.isDirectory()) {
         index += 1;
-        process.nextTick(computeOne);
+        setImmediate(computeOne);
         return;
       }
       var fullPath = path.join(localDir, localFileStat.path);
