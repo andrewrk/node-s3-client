@@ -639,7 +639,13 @@ function syncDir(self, params, directionIsToS3) {
       assert.ok(!directionIsToS3);
       assert.ok(deleteRemoved);
 
-      throw new Error("TODO");
+      localFileCursor += 1;
+      setImmediate(checkDoMoreWork);
+
+      debugger;
+      if (!s3Object || localFileStat.s3Path < s3Object.dirname) {
+        deleteLocalDir();
+      }
     }
 
     if (directionIsToS3) {
@@ -654,12 +660,98 @@ function syncDir(self, params, directionIsToS3) {
       } else if (!compareETag(s3Object.ETag, localFileStat.md5sum)){
         uploadLocalFile();
       } else {
-        s3ObjectCursor += 1;
-        localFileCursor += 1;
-        setImmediate(checkDoMoreWork);
+        skipThisOne();
       }
     } else {
-      throw new Error("TODO");
+      if (!localFileStat) {
+        downloadS3Object();
+      } else if (!s3Object) {
+        deleteLocalFile();
+      } else if (localFileStat.s3Path < s3Object.key) {
+        deleteLocalFile();
+      } else if (localFileStat.s3Path > s3Object.key) {
+        downloadS3Object();
+      } else if (!compareETag(s3Object.ETag, localFileStat.md5sum)){
+        downloadS3Object();
+      } else {
+        skipThisOne();
+      }
+    }
+
+    function deleteLocalDir() {
+      var fullPath = path.join(localDir, localFileStat.path);
+      ee.deleteTotal += 1;
+      rimraf(fullPath, function(err) {
+        if (fatalError) return;
+        if (err && err.code !== 'ENOENT') return handleError(err);
+        ee.deleteAmount += 1;
+        ee.emit('progress');
+        checkDoMoreWork();
+      });
+    }
+
+    function deleteLocalFile() {
+      localFileCursor += 1;
+      setImmediate(checkDoMoreWork);
+      if (!deleteRemoved) return;
+      ee.deleteTotal += 1;
+      var fullPath = path.join(localDir, localFileStat.path);
+      fs.unlink(fullPath, function(err) {
+        if (fatalError) return;
+        if (err && err.code !== 'ENOENT') return handleError(err);
+        ee.deleteAmount += 1;
+        ee.emit('progress');
+        checkDoMoreWork();
+      });
+    }
+
+    function downloadS3Object() {
+      s3ObjectCursor += 1;
+      setImmediate(checkDoMoreWork);
+      var fullPath = path.join(localDir, toNativeSep(s3Object.key));
+
+      if (getS3Params) {
+        getS3Params(fullPath, s3Object, haveS3Params);
+      } else {
+        startDownload();
+      }
+
+      function haveS3Params(err, s3Params) {
+        if (fatalError) return;
+        if (err) return handleError(err);
+
+        if (!s3Params) {
+          // user has decided to skip this file
+          return;
+        }
+
+        upDownFileParams.s3Params = extend(extend({}, baseUpDownS3Params), s3Params);
+        startDownload();
+      }
+
+      function startDownload() {
+        ee.progressTotal += s3Object.Size;
+        upDownFileParams.s3Params.Key = prefix + s3Object.key;
+        upDownFileParams.localFile = fullPath;
+        upDownFileParams.localFileStat = null;
+        var downloader = self.downloadFile(upDownFileParams);
+        var prevAmountDone = 0;
+        downloader.on('error', handleError);
+        downloader.on('progress', function() {
+          if (fatalError) return;
+          var delta = downloader.progressAmount - prevAmountDone;
+          prevAmountDone = downloader.progressAmount;
+          ee.progressAmount += delta;
+          ee.emit('progress');
+        });
+        downloader.on('end', checkDoMoreWork);
+      }
+    }
+
+    function skipThisOne() {
+      s3ObjectCursor += 1;
+      localFileCursor += 1;
+      setImmediate(checkDoMoreWork);
     }
 
     function uploadLocalFile() {
@@ -841,336 +933,6 @@ function syncDir(self, params, directionIsToS3) {
     });
   }
 }
-
-/*
-function syncDir(self, params, directionIsToS3) {
-  var ee = new EventEmitter();
-
-  var localDir = params.localDir;
-  var getS3Params = params.getS3Params;
-  var localFiles = {};
-  var localFilesSize = 0;
-  var localDirs = {};
-  var s3Objects = {};
-  var s3ObjectsSize = 0;
-  var s3Dirs = {};
-  var deleteRemoved = params.deleteRemoved === true;
-  var prefix = params.s3Params.Prefix ? ensureSlash(params.s3Params.Prefix) : '';
-  var bucket = params.s3Params.Bucket;
-  var listObjectsParams = {
-    recursive: true,
-    s3Params: {
-      Bucket: bucket,
-      Marker: null,
-      MaxKeys: null,
-      Prefix: prefix,
-    },
-  };
-  var baseUpDownS3Params = extend({}, params.s3Params);
-  var upDownFileParams = {
-    localFile: null,
-    localFileStat: null,
-    s3Params: baseUpDownS3Params,
-  };
-  delete upDownFileParams.s3Params.Prefix;
-
-  ee.progressTotal = 0;
-  ee.progressAmount = 0;
-  ee.progressMd5Amount = 0;
-  ee.progressMd5Total = 0;
-  ee.objectsFound = 0;
-  ee.startedTransfer = false;
-
-  var pend = new Pend();
-  pend.go(findAllS3Objects);
-  pend.go(findAllFiles);
-  pend.wait(compareResults);
-
-  return ee;
-
-  function compareResults(err) {
-    if (err) {
-      ee.emit('error', err);
-      return;
-    }
-
-    var pend = new Pend();
-    if (directionIsToS3) {
-      if (deleteRemoved) pend.go(deleteRemovedObjects);
-      pend.go(uploadDifferentObjects);
-    } else {
-      if (deleteRemoved) pend.go(deleteRemovedLocalFiles);
-      pend.go(downloadDifferentObjects);
-    }
-    ee.startedTransfer = true;
-    ee.emit('progress');
-    pend.wait(function(err) {
-      if (err) {
-        ee.emit('error', err);
-        return;
-      }
-      ee.emit('end');
-    });
-  }
-
-  function downloadDifferentObjects(cb) {
-    var pend = new Pend();
-    for (var relPath in s3Objects) {
-      var s3Object = s3Objects[relPath];
-      var localFileStat = localFiles[relPath];
-      if (!localFileStat || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
-        downloadOneFile(relPath, s3Object);
-      }
-    }
-    pend.wait(cb);
-
-    function downloadOneFile(relPath, s3Object) {
-      var fullPath = path.join(localDir, toNativeSep(relPath));
-      pend.go(function(cb) {
-        if (getS3Params) {
-          getS3Params(fullPath, s3Object, haveS3Params);
-        } else {
-          startDownload();
-        }
-
-        function haveS3Params(err, s3Params) {
-          if (err) return cb(err);
-
-          if (!s3Params) {
-            //user has decided to skip this file
-            cb();
-            return;
-          }
-
-          upDownFileParams.s3Params = extend(extend({}, baseUpDownS3Params), s3Params);
-          startDownload();
-        }
-
-        function startDownload() {
-          ee.progressTotal += s3Object.Size;
-          upDownFileParams.s3Params.Key = prefix + relPath;
-          upDownFileParams.localFile = fullPath;
-          upDownFileParams.localFileStat = null;
-          var downloader = self.downloadFile(upDownFileParams);
-          var prevAmountDone = 0;
-          downloader.on('error', function(err) {
-            cb(err);
-          });
-          downloader.on('progress', function() {
-            var delta = downloader.progressAmount - prevAmountDone;
-            prevAmountDone = downloader.progressAmount;
-            ee.progressAmount += delta;
-            ee.emit('progress');
-          });
-          downloader.on('end', function() {
-            cb();
-          });
-        }
-      });
-    }
-  }
-
-  function deleteRemovedLocalFiles(cb) {
-    var pend = new Pend();
-    var relPath;
-    for (relPath in localFiles) {
-      var localFileStat = localFiles[relPath];
-      var s3Object = s3Objects[relPath];
-      if (!s3Object) {
-        deleteOneFile(localFileStat);
-      }
-    }
-    for (relPath in localDirs) {
-      var localDirStat = localDirs[relPath];
-      var s3Dir = s3Dirs[relPath];
-      if (!s3Dir) {
-        deleteOneDir(localDirStat);
-      }
-    }
-    pend.wait(cb);
-
-    function deleteOneDir(stat) {
-      var fullPath = path.join(localDir, stat.path);
-      pend.go(function(cb) {
-        rimraf(fullPath, function(err) {
-          // ignore ENOENT errors
-          if (err && err.code === 'ENOENT') err = null;
-          cb(err);
-        });
-      });
-    }
-
-    function deleteOneFile(stat) {
-      var fullPath = path.join(localDir, stat.path);
-      pend.go(function(cb) {
-        fs.unlink(fullPath, function(err) {
-          // ignore ENOENT errors
-          if (err && err.code === 'ENOENT') err = null;
-          cb(err);
-        });
-      });
-    }
-  }
-
-  function uploadDifferentObjects(cb) {
-    var pend = new Pend();
-    for (var relPath in localFiles) {
-      var localFileStat = localFiles[relPath];
-      var s3Object = s3Objects[relPath];
-      if (!s3Object || !compareETag(s3Object.ETag, localFileStat.md5sum)) {
-        uploadOneFile(relPath, localFileStat);
-      }
-    }
-    ee.emit('progress');
-    pend.wait(cb);
-
-    function uploadOneFile(relPath, localFileStat) {
-      var fullPath = path.join(localDir, localFileStat.path);
-      pend.go(function(cb) {
-        if (getS3Params) {
-          getS3Params(fullPath, localFileStat, haveS3Params);
-        } else {
-          upDownFileParams.s3Params = baseUpDownS3Params;
-          startUpload();
-        }
-
-        function haveS3Params(err, s3Params) {
-          if (err) return cb(err);
-
-          if (!s3Params) {
-            // user has decided to skip this file
-            cb();
-            return;
-          }
-
-          upDownFileParams.s3Params = extend(extend({}, baseUpDownS3Params), s3Params);
-          startUpload();
-        }
-
-        function startUpload() {
-          ee.progressTotal += localFileStat.size;
-          upDownFileParams.s3Params.Key = prefix + relPath;
-          upDownFileParams.localFile = fullPath;
-          upDownFileParams.localFileStat = localFileStat;
-          var uploader = self.uploadFile(upDownFileParams);
-          var prevAmountDone = 0;
-          uploader.on('error', function(err) {
-            cb(err);
-          });
-          uploader.on('progress', function() {
-            var delta = uploader.progressAmount - prevAmountDone;
-            prevAmountDone = uploader.progressAmount;
-            ee.progressAmount += delta;
-            ee.emit('progress');
-          });
-          uploader.on('end', function() {
-            cb();
-          });
-        }
-      });
-    }
-  }
-
-  function deleteRemovedObjects(cb) {
-    var objectsToDelete = [];
-    for (var relPath in s3Objects) {
-      var s3Object = s3Objects[relPath];
-      var localFileStat = localFiles[relPath];
-      if (!localFileStat) {
-        objectsToDelete.push({Key: prefix + relPath});
-      }
-    }
-    var params = {
-      Bucket: bucket,
-      Delete: {
-        Objects: objectsToDelete,
-        Quiet: true,
-      },
-    };
-    var deleter = self.deleteObjects(params);
-    deleter.on('error', function(err) {
-      cb(err);
-    });
-    deleter.on('end', function() {
-      cb();
-    });
-  }
-
-  function findAllS3Objects(cb) {
-    var finder = self.listObjects(listObjectsParams);
-    finder.on('error', function(err) {
-      cb(err);
-    });
-    finder.on('data', function(data) {
-      ee.objectsFound += data.Contents.length;
-      ee.emit('progress');
-      data.Contents.forEach(function(object) {
-        var key = object.Key.substring(prefix.length);
-        s3Objects[key] = object;
-        s3ObjectsSize += object.Size;
-        var dirname = unixDirname(key);
-        if (dirname === '.') return;
-        s3Dirs[dirname] = true;
-      });
-    });
-    finder.on('end', function() {
-      cb();
-    });
-  }
-
-  function findAllFiles(cb) {
-    var dirWithSlash = ensureSep(localDir);
-    var walker = findit(dirWithSlash);
-    var errorOccurred = false;
-    var pend = new Pend();
-    walker.on('error', function(err) {
-      if (errorOccurred) return;
-      errorOccurred = true;
-      walker.stop();
-      cb(err);
-    });
-    walker.on('directory', function(dir, stat) {
-      var relPath = path.relative(localDir, dir);
-      if (relPath === '') return;
-      stat.path = relPath;
-      localDirs[toUnixSep(relPath)] = stat;
-    });
-    walker.on('file', function(file, stat) {
-      var relPath = path.relative(localDir, file);
-      if (stat.size > MAX_PUTOBJECT_SIZE) {
-        stat.md5sum = new Buffer(0); // ETag has different format for files this big
-        localFiles[relPath] = stat;
-        return;
-      }
-      ee.progressMd5Total += stat.size;
-      pend.go(function(cb) {
-        var inStream = fs.createReadStream(file);
-        var hash = crypto.createHash('md5');
-        inStream.on('error', function(err) {
-          if (errorOccurred) return;
-          errorOccurred = true;
-          walker.stop();
-          cb(err);
-        });
-        hash.on('data', function(digest) {
-          stat.md5sum = digest;
-          stat.path = relPath;
-          localFiles[toUnixSep(relPath)] = stat;
-          localFilesSize += stat.size;
-          ee.progressMd5Amount += stat.size;
-          ee.emit('progress');
-          cb();
-        });
-        inStream.pipe(hash);
-      });
-    });
-    walker.on('end', function() {
-      if (errorOccurred) return;
-      pend.wait(cb);
-    });
-  }
-}
-*/
 
 function ensureChar(str, c) {
   return (str[str.length - 1] === c) ? str : (str + c);
