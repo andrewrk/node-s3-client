@@ -734,7 +734,7 @@ function syncDir(self, params, directionIsToS3) {
 
       function startDownload() {
         ee.progressTotal += s3Object.Size;
-        upDownFileParams.s3Params.Key = prefix + s3Object.key;
+        upDownFileParams.s3Params.Key = s3Object.Key;
         upDownFileParams.localFile = fullPath;
         upDownFileParams.localFileStat = null;
         var downloader = self.downloadFile(upDownFileParams);
@@ -784,7 +784,7 @@ function syncDir(self, params, directionIsToS3) {
 
       function startUpload() {
         ee.progressTotal += localFileStat.size;
-        upDownFileParams.s3Params.Key = prefix + localFileStat.path;
+        upDownFileParams.s3Params.Key = prefix + localFileStat.s3Path;
         upDownFileParams.localFile = fullPath;
         upDownFileParams.localFileStat = localFileStat;
         var uploader = self.uploadFile(upDownFileParams);
