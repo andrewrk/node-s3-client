@@ -709,7 +709,7 @@ function syncDir(self, params, directionIsToS3) {
     function deleteS3Object() {
       s3ObjectCursor += 1;
       setImmediate(checkDoMoreWork);
-      if (deleteRemoved) return;
+      if (!deleteRemoved) return;
       objectsToDelete.push({Key: s3Object.Key});
       ee.deleteTotal += 1;
       ee.emit('progress');
