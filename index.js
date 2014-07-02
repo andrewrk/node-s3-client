@@ -964,7 +964,6 @@ function doWithRetry(fn, tryCount, delay, cb) {
           if (tryIndex >= tryCount) {
             cb(err);
           } else {
-            console.log("\nretry", tryIndex, err.message);
             setTimeout(tryOnce, delay);
           }
         }
