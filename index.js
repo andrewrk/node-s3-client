@@ -35,7 +35,7 @@ function Client(options) {
   options = options || {};
   this.s3 = options.s3Client || new AWS.S3(options.s3Options);
   this.s3Pend = new Pend();
-  this.s3Pend.max = options.maxAsyncS3 || 30;
+  this.s3Pend.max = options.maxAsyncS3 || 14;
   this.s3RetryCount = options.s3RetryCount || 3;
   this.s3RetryDelay = options.s3RetryDelay || 1000;
 }
@@ -246,6 +246,10 @@ Client.prototype.downloadFile = function(params) {
 
   function doTheDownload(cb) {
     var request = self.s3.getObject(s3Params);
+    request.on('build', function() {
+      request.httpRequest.headers.Expect = '100-continue';
+    });
+
     var response = request.createReadStream();
     var outStream = fs.createWriteStream(localFile);
     var counter = new StreamCounter();
