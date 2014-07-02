@@ -271,9 +271,9 @@ be empty string.
 
 The difference between using AWS SDK `listObjects` and this one:
 
- * Retry based on the client's retry settings.
+ * Retries based on the client's retry settings.
  * Supports recursive directory listing.
- * Make multiple requests if the number of objects to list is greater than 1000.
+ * Makes multiple requests if the number of objects to list is greater than 1000.
 
 Returns an `EventEmitter` with these properties:
 
@@ -300,7 +300,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#deleteObjects
 
 `s3Params` are the same.
 
-The difference between using AWS SDK `deleteObjects` and this one is that this one will:
+The difference between using AWS SDK `deleteObjects` and this one:
 
  * Retry based on the client's retry settings.
  * Make multiple requests if the number of objects you want to delete is
@@ -481,7 +481,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#copyObject-pr
 `s3Params` are the same. Don't forget that `CopySource` must contain the
 source bucket name as well as the source key name.
 
-The difference between using AWS SDK `copyObject` and this one will:
+The difference between using AWS SDK `copyObject` and this one:
 
  * Retry based on the client's retry settings.
 
