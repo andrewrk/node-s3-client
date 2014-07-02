@@ -21,7 +21,6 @@ var MAX_PUTOBJECT_SIZE = 5 * 1024 * 1024 * 1024;
 var MAX_DELETE_COUNT = 1000;
 
 var TO_UNIX_RE = new RegExp(quotemeta(path.sep), 'g');
-var UNIX_SPLIT_PATH_RE = /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
 
 exports.createClient = function(options) {
   return new Client(options);
@@ -642,10 +641,10 @@ function syncDir(self, params, directionIsToS3) {
       localFileCursor += 1;
       setImmediate(checkDoMoreWork);
 
-      debugger;
-      if (!s3Object || localFileStat.s3Path < s3Object.dirname) {
+      if (!s3Object || s3Object.key.indexOf(localFileStat.s3Path) !== 0) {
         deleteLocalDir();
       }
+      return;
     }
 
     if (directionIsToS3) {
@@ -827,7 +826,6 @@ function syncDir(self, params, directionIsToS3) {
       ee.emit('progress');
       data.Contents.forEach(function(object) {
         object.key = object.Key.substring(prefix.length);
-        object.dirname = unixDirname(object.key);
         allS3Objects.push(object);
       });
       checkDoMoreWork();
@@ -874,7 +872,7 @@ function syncDir(self, params, directionIsToS3) {
         checkDoMoreWork();
         return;
       }
-      if (localFileStat.md5sum || localFileStat.isDirectory()) {
+      if (localFileStat.md5sum) {
         index += 1;
         setImmediate(computeOne);
         return;
@@ -911,7 +909,8 @@ function syncDir(self, params, directionIsToS3) {
       var relPath = path.relative(localDir, dir);
       if (relPath === '') return;
       stat.path = relPath;
-      stat.s3Path = toUnixSep(relPath);
+      stat.s3Path = toUnixSep(relPath) + '/';
+      stat.md5sum = new Buffer(0);
       allLocalFiles.push(stat);
     });
     walker.on('file', function(file, stat) {
@@ -961,6 +960,7 @@ function doWithRetry(fn, tryCount, delay, cb) {
           if (tryIndex >= tryCount) {
             cb(err);
           } else {
+            console.log("\nretry", tryIndex, err.message);
             setTimeout(tryOnce, delay);
           }
         }
@@ -1032,28 +1032,6 @@ function toUnixSep(str) {
 
 function toNativeSep(str) {
   return str.replace(/\//g, path.sep);
-}
-
-function unixDirname(path) {
-  var result = unixSplitPath(path);
-  var root = result[0];
-  var dir = result[1];
-
-  if (!root && !dir) {
-    // No dirname whatsoever
-    return '.';
-  }
-
-  if (dir) {
-    // It has a dirname, strip trailing slash
-    dir = dir.substr(0, dir.length - 1);
-  }
-
-  return root + dir;
-}
-
-function unixSplitPath(filename) {
-  return UNIX_SPLIT_PATH_RE.exec(filename).slice(1);
 }
 
 function quotemeta(str) {

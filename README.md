@@ -145,7 +145,7 @@ Creates an S3 client.
    - See AWS SDK documentation for available options which are passed to `new AWS.S3()`:
      http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
  * `maxAsyncS3` - maximum number of simultaneous requests this client will
-   ever have open to S3. defaults to `20`.
+   ever have open to S3. defaults to `30`.
  * `s3RetryCount` - how many times to try an S3 operation before giving up.
    Default 3.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3
