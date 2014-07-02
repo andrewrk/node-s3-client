@@ -350,12 +350,21 @@ Returns an `EventEmitter` with these properties:
 
  * `progressAmount`
  * `progressTotal`
+ * `progressMd5Amount`
+ * `progressMd5Total`
+ * `deleteAmount`
+ * `deleteTotal`
+ * `filesFound`
+ * `objectsFound`
+ * `doneFindingFiles`
+ * `doneFindingObjects`
+ * `doneMd5`
 
 And these events:
 
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
- * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
+ * `'progress'` - emitted when any of the above progress properties change.
 
 `uploadDir` works like this:
 
@@ -406,12 +415,21 @@ Returns an `EventEmitter` with these properties:
 
  * `progressAmount`
  * `progressTotal`
+ * `progressMd5Amount`
+ * `progressMd5Total`
+ * `deleteAmount`
+ * `deleteTotal`
+ * `filesFound`
+ * `objectsFound`
+ * `doneFindingFiles`
+ * `doneFindingObjects`
+ * `doneMd5`
 
 And these events:
 
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
- * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
+ * `'progress'` - emitted when any of the progress properties above change
 
 `downloadDir` works like this:
 
@@ -493,6 +511,25 @@ Returns an `EventEmitter` with these events:
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`
 
 ## History
+
+### 3.0.0
+
+ * `uploadDir` and `downloadDir` completely rewritten with more efficient
+   algorithm, which is explained in the documentation.
+ * Default `maxAsyncS3` setting changed from `Infinity` to `30`.
+ * No longer recommend adding graceful-fs to your app.
+ * No longer recommend increasing ulimit for number of open files.
+ * Add `followSymlinks` option to `uploadDir` and `downloadDir`
+ * `uploadDir` and `downloadDir` support these additional progress properties:
+   - `filesFound`
+   - `objectsFound`
+   - `deleteAmount`
+   - `deleteTotal`
+   - `doneFindingFiles`
+   - `doneFindingObjects`
+   - `progressMd5Amount`
+   - `progressMd5Total`
+   - `doneMd5`
 
 ### 2.0.0
 

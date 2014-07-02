@@ -1,6 +1,6 @@
 {
   "name": "s3",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "high level amazon s3 client. upload and download files and directories",
   "main": "index.js",
   "scripts": {
