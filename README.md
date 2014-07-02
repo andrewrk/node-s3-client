@@ -512,6 +512,11 @@ Returns an `EventEmitter` with these events:
 
 ## History
 
+### 3.0.1
+
+ * Default `maxAsyncS3` setting change from `30` to `14`.
+ * Add `Expect: 100-continue` header to downloads.
+
 ### 3.0.0
 
  * `uploadDir` and `downloadDir` completely rewritten with more efficient
