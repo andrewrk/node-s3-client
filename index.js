@@ -899,7 +899,11 @@ function syncDir(self, params, directionIsToS3) {
     var walker = findit(dirWithSlash, finditOpts);
     walker.on('error', function(err) {
       walker.stop();
-      cb(err);
+      if (err.path === dirWithSlash && err.code === 'ENOENT') {
+        cb();
+      } else {
+        cb(err);
+      }
     });
     walker.on('directory', function(dir, stat) {
       if (fatalError) return walker.stop();
