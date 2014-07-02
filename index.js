@@ -9,6 +9,7 @@ var path = require('path');
 var crypto = require('crypto');
 var StreamCounter = require('stream-counter');
 var mkdirp = require('mkdirp');
+var assert = require('assert');
 
 // greater than 5 gigabytes and S3 requires a multipart upload. Multipart
 // uploads have a different ETag format. For multipart upload ETags it is
@@ -38,7 +39,6 @@ function Client(options) {
   this.s3Pend.max = options.maxAsyncS3 || 20;
   this.s3RetryCount = options.s3RetryCount || 3;
   this.s3RetryDelay = options.s3RetryDelay || 1000;
-  this.maxAsyncDisk = options.maxAsyncDisk || 1;
 }
 
 Client.prototype.deleteObjects = function(s3Params) {
@@ -529,6 +529,320 @@ Client.prototype.moveObject = function(s3Params) {
 
 function syncDir(self, params, directionIsToS3) {
   var ee = new EventEmitter();
+  var finditOpts = {
+    fs: fs,
+    followSymlinks: !!params.followSymlinks,
+  };
+  var localDir = params.localDir;
+  var deleteRemoved = params.deleteRemoved === true;
+  var fatalError = false;
+  var prefix = params.s3Params.Prefix ? ensureSlash(params.s3Params.Prefix) : '';
+  var bucket = params.s3Params.Bucket;
+  var listObjectsParams = {
+    recursive: true,
+    s3Params: {
+      Bucket: bucket,
+      Marker: null,
+      MaxKeys: null,
+      Prefix: prefix,
+    },
+  };
+  var getS3Params = params.getS3Params;
+  var baseUpDownS3Params = extend({}, params.s3Params);
+  var upDownFileParams = {
+    localFile: null,
+    localFileStat: null,
+    s3Params: baseUpDownS3Params,
+  };
+  delete upDownFileParams.s3Params.Prefix;
+
+  ee.progressAmount = 0;
+  ee.progressTotal = 0;
+  ee.progressMd5Amount = 0;
+  ee.progressMd5Total = 0;
+  ee.objectsFound = 0;
+  ee.filesFound = 0;
+  ee.deleteAmount = 0;
+  ee.deleteTotal = 0;
+  ee.doneFindingFiles = false;
+  ee.doneFindingObjects = false;
+  ee.doneMd5 = false;
+
+  var allLocalFiles = [];
+  var allS3Objects = [];
+  var localFileCursor = 0;
+  var s3ObjectCursor = 0;
+  var objectsToDelete = [];
+
+  findAllS3Objects();
+  startFindAllFiles();
+
+  return ee;
+
+  function flushDeletes() {
+    if (objectsToDelete.length === 0) return;
+    var thisObjectsToDelete = objectsToDelete;
+    objectsToDelete = [];
+    var params = {
+      Bucket: bucket,
+      Delete: {
+        Objects: thisObjectsToDelete,
+        Quiet: true,
+      },
+    };
+    var deleter = self.deleteObjects(params);
+    deleter.on('error', handleError);
+    deleter.on('end', function() {
+      if (fatalError) return;
+      ee.deleteAmount += thisObjectsToDelete.length;
+      ee.emit('progress');
+      checkDoMoreWork();
+    });
+  }
+
+  function checkDoMoreWork() {
+    if (fatalError) return;
+
+    var localFileStat = allLocalFiles[localFileCursor];
+    var s3Object = allS3Objects[s3ObjectCursor];
+
+    // need to wait for a file or object. checkDoMoreWork will get called
+    // again when that happens.
+    if (!localFileStat && !ee.doneMd5) return;
+    if (!s3Object && !ee.doneFindingObjects) return;
+
+    // need to wait until the md5 is done computing for the local file
+    if (localFileStat && !localFileStat.md5sum) return;
+
+    // localFileStat or s3Object could still be null - in that case we have
+    // reached the real end of the list.
+
+    // if they're both null, we've reached the true end
+    if (!localFileStat && !s3Object) {
+      // if we don't have any pending deletes or uploads, we're actually done
+      flushDeletes();
+      if (ee.deleteAmount >= ee.deleteTotal &&
+          ee.progressAmount >= ee.progressTotal)
+      {
+        ee.emit('end');
+        // prevent checkDoMoreWork from doing any more work
+        fatalError = true;
+      }
+      // either way, there's nothing else to do in this method
+      return;
+    }
+
+    // special case for directories when deleteRemoved is true and we're
+    // downloading a dir from S3. We don't add directories to the list
+    // unless this case is true, so we assert that fact here.
+    if (localFileStat && localFileStat.isDirectory()) {
+      assert.ok(!directionIsToS3);
+      assert.ok(deleteRemoved);
+
+      throw new Error("TODO");
+    }
+
+    if (directionIsToS3) {
+      if (!localFileStat) {
+        deleteS3Object();
+      } else if (!s3Object) {
+        uploadLocalFile();
+      } else if (localFileStat.s3Path < s3Object.key) {
+        uploadLocalFile();
+      } else if (localFileStat.s3Path > s3Object.key) {
+        deleteS3Object();
+      } else if (!compareETag(s3Object.ETag, localFileStat.md5sum)){
+        uploadLocalFile();
+      } else {
+        s3ObjectCursor += 1;
+        localFileCursor += 1;
+        process.nextTick(checkDoMoreWork);
+      }
+    } else {
+      throw new Error("TODO");
+    }
+
+    function uploadLocalFile() {
+      localFileCursor += 1;
+      var fullPath = path.join(localDir, localFileStat.path);
+
+      if (getS3Params) {
+        getS3Params(fullPath, localFileStat, haveS3Params);
+      } else {
+        upDownFileParams.s3Params = baseUpDownS3Params;
+        startUpload();
+      }
+
+      function haveS3Params(err, s3Params) {
+        if (fatalError) return;
+        if (err) return handleError(err);
+
+        if (!s3Params) {
+          // user has decided to skip this file
+          return;
+        }
+
+        upDownFileParams.s3Params = extend(extend({}, baseUpDownS3Params), s3Params);
+        startUpload();
+      }
+
+      function startUpload() {
+        ee.progressTotal += localFileStat.size;
+        upDownFileParams.s3Params.Key = prefix + localFileStat.path;
+        upDownFileParams.localFile = fullPath;
+        upDownFileParams.localFileStat = localFileStat;
+        var uploader = self.uploadFile(upDownFileParams);
+        var prevAmountDone = 0;
+        uploader.on('error', handleError);
+        uploader.on('progress', function() {
+          if (fatalError) return;
+          var delta = uploader.progressAmount - prevAmountDone;
+          prevAmountDone = uploader.progressAmount;
+          ee.progressAmount += delta;
+          ee.emit('progress');
+        });
+        uploader.on('end', checkDoMoreWork);
+      }
+    }
+
+    function deleteS3Object() {
+      s3ObjectCursor += 1;
+      if (deleteRemoved) return;
+      objectsToDelete.push({Key: s3Object.Key});
+      ee.deleteTotal += 1;
+      ee.emit('progress');
+      assert.ok(objectsToDelete.length <= 1000);
+      if (objectsToDelete.length === 1000) {
+        flushDeletes();
+      }
+    }
+  }
+
+  function handleError(err) {
+    if (fatalError) return;
+    fatalError = true;
+    ee.emit('error', err);
+  }
+
+  function findAllS3Objects() {
+    var finder = self.listObjects(listObjectsParams);
+    finder.on('error', handleError);
+    finder.on('data', function(data) {
+      if (fatalError) return;
+      ee.objectsFound += data.Contents.length;
+      ee.emit('progress');
+      data.Contents.forEach(function(object) {
+        object.key = object.Key.substring(prefix.length);
+        object.dirname = unixDirname(object.key);
+        allS3Objects.push(object);
+      });
+      checkDoMoreWork();
+    });
+    finder.on('end', function() {
+      if (fatalError) return;
+      ee.doneFindingObjects = true;
+      ee.emit('progress');
+      checkDoMoreWork();
+    });
+  }
+
+  function startFindAllFiles() {
+    findAllFiles(function(err) {
+      if (fatalError) return;
+      if (err) return handleError(err);
+
+      ee.doneFindingFiles = true;
+      ee.emit('progress');
+
+      allLocalFiles.sort(function(a, b) {
+        if (a.s3Path < b.s3Path) {
+          return -1;
+        } else if (a.s3Path > b.s3Path) {
+          return 1;
+        } else {
+          return 0;
+        }
+      });
+      startComputingMd5Sums();
+    });
+  }
+
+  function startComputingMd5Sums() {
+    var index = 0;
+    computeOne();
+
+    function computeOne() {
+      if (fatalError) return;
+      var localFileStat = allLocalFiles[index];
+      if (!localFileStat) {
+        ee.doneMd5 = true;
+        ee.emit('progress');
+        checkDoMoreWork();
+        return;
+      }
+      if (localFileStat.md5sum || localFileStat.isDirectory()) {
+        index += 1;
+        process.nextTick(computeOne);
+        return;
+      }
+      var fullPath = path.join(localDir, localFileStat.path);
+      var inStream = fs.createReadStream(fullPath);
+      var hash = crypto.createHash('md5');
+      inStream.on('error', handleError);
+      hash.on('data', function(digest) {
+        if (fatalError) return;
+        localFileStat.md5sum = digest;
+        checkDoMoreWork();
+        ee.progressMd5Amount += localFileStat.size;
+        ee.emit('progress');
+        index += 1;
+        computeOne();
+      });
+      inStream.pipe(hash);
+    }
+  }
+
+  function findAllFiles(cb) {
+    var dirWithSlash = ensureSep(localDir);
+    var walker = findit(dirWithSlash, finditOpts);
+    walker.on('error', function(err) {
+      walker.stop();
+      cb(err);
+    });
+    walker.on('directory', function(dir, stat) {
+      if (fatalError) return walker.stop();
+      // we only need to save directories when deleteRemoved is true
+      // and we're syncing to disk from s3
+      if (!deleteRemoved || directionIsToS3) return;
+      var relPath = path.relative(localDir, dir);
+      if (relPath === '') return;
+      stat.path = relPath;
+      stat.s3Path = toUnixSep(relPath);
+      allLocalFiles.push(stat);
+    });
+    walker.on('file', function(file, stat) {
+      if (fatalError) return walker.stop();
+      var relPath = path.relative(localDir, file);
+      stat.path = relPath;
+      stat.s3Path = toUnixSep(relPath);
+      ee.filesFound += 1;
+      if (stat.size > MAX_PUTOBJECT_SIZE) {
+        stat.md5sum = new Buffer(0); // ETag has different format for files this big
+      } else {
+        ee.progressMd5Total += stat.size;
+      }
+      ee.emit('progress');
+      allLocalFiles.push(stat);
+    });
+    walker.on('end', function() {
+      cb();
+    });
+  }
+}
+
+/*
+function syncDir(self, params, directionIsToS3) {
+  var ee = new EventEmitter();
 
   var localDir = params.localDir;
   var getS3Params = params.getS3Params;
@@ -807,7 +1121,6 @@ function syncDir(self, params, directionIsToS3) {
     var walker = findit(dirWithSlash);
     var errorOccurred = false;
     var pend = new Pend();
-    pend.max = self.maxAsyncDisk;
     walker.on('error', function(err) {
       if (errorOccurred) return;
       errorOccurred = true;
@@ -855,6 +1168,7 @@ function syncDir(self, params, directionIsToS3) {
     });
   }
 }
+*/
 
 function ensureChar(str, c) {
   return (str[str.length - 1] === c) ? str : (str + c);

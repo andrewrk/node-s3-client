@@ -24,7 +24,6 @@ var client = s3.createClient({
   maxAsyncS3: 20,     // this is the default
   s3RetryCount: 3     // this is the default
   s3RetryDelay: 1000, // this is the default
-  maxAsyncDisk: 1,    // this is the default
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
@@ -330,7 +329,7 @@ Syncs an entire directory to S3.
    default false
  * `getS3Params` - optional function which will be called for every file that
    needs to be uploaded. See below.
- * `followSymLinks` - defaults to `false`
+ * `followSymlinks` - defaults to `false`
  * `s3Params`
    - `Prefix` (required)
    - `Bucket` (required)
@@ -449,6 +448,13 @@ And these events:
  * `'error' (err)`
  * `'end'` - emitted when all objects are deleted.
  * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
+
+`deleteDir` works like this:
+
+ 0. Start listing all objects in a bucket recursively. S3 returns 1000 objects
+    per response.
+ 0. For each response that comes back with a list of objects in the bucket,
+    immediately send a delete request for all of them.
 
 ### client.copyObject(s3Params)
 
