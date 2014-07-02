@@ -512,6 +512,10 @@ Returns an `EventEmitter` with these events:
 
 ## History
 
+### 3.0.2
+
+ * fix upload path on Windows
+
 ### 3.0.1
 
  * Default `maxAsyncS3` setting change from `30` to `14`.
