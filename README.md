@@ -21,7 +21,7 @@ See also the companion CLI tool, [s3-cli](https://github.com/andrewrk/node-s3-cl
 var s3 = require('s3');
 
 var client = s3.createClient({
-  maxAsyncS3: 20,     // this is the default
+  maxAsyncS3: 30,     // this is the default
   s3RetryCount: 3     // this is the default
   s3RetryDelay: 1000, // this is the default
   s3Options: {
