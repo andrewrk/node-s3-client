@@ -1013,7 +1013,8 @@ function encodeSpecialCharacters(filename) {
 }
 
 function getPublicUrl(bucket, key, bucketLocation) {
-  var hostnamePrefix = bucketLocation ? ("s3-" + bucketLocation) : "s3";
+  var nonStandardBucketLocation = (bucketLocation && bucketLocation !== 'us-east-1');
+  var hostnamePrefix = nonStandardBucketLocation ? ("s3-" + bucketLocation) : "s3";
   var parts = {
     protocol: "https:",
     hostname: hostnamePrefix + ".amazonaws.com",
