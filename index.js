@@ -97,71 +97,34 @@ Client.prototype.uploadFile = function(params) {
   var uploader = new EventEmitter();
   uploader.progressMd5Amount = 0;
   uploader.progressAmount = 0;
-  uploader.progressTotal = 1;
+  uploader.progressTotal = 0;
 
   var localFile = params.localFile;
   var localFileStat = params.localFileStat;
   var s3Params = extend({}, params.s3Params);
 
-  if (!localFileStat || !localFileStat.md5sum) {
-    doStatAndMd5Sum();
+  if (!localFileStat) {
+    doStat();
   } else {
     uploader.progressTotal = localFileStat.size;
-    startPuttingObject();
+    setImmediate(startPuttingObject);
   }
 
   return uploader;
 
-  function doStatAndMd5Sum() {
-    var md5sum;
-    var pend = new Pend();
-    pend.go(doStat);
-    pend.go(doMd5Sum);
-    pend.wait(function(err) {
+  function doStat() {
+    fs.stat(localFile, function(err, stat) {
       if (err) {
         uploader.emit('error', err);
         return;
       }
-      localFileStat.md5sum = md5sum;
+      localFileStat = stat;
+      uploader.progressTotal = stat.size;
       startPuttingObject();
     });
-
-    function doStat(cb) {
-      fs.stat(localFile, function(err, stat) {
-        if (!err) {
-          localFileStat = stat;
-          uploader.progressTotal = stat.size;
-        }
-        cb(err);
-      });
-    }
-
-    function doMd5Sum(cb) {
-      var inStream = fs.createReadStream(localFile);
-      var counter = new StreamCounter();
-      inStream.on('error', function(err) {
-        cb(err);
-      });
-      uploader.emit('stream', inStream);
-      var hash = crypto.createHash('md5');
-      hash.on('data', function(digest) {
-        md5sum = digest;
-        cb();
-      });
-      counter.on('progress', function() {
-        uploader.progressMd5Amount = counter.bytes;
-        uploader.emit('progress');
-      });
-      inStream.pipe(hash);
-      inStream.pipe(counter);
-    }
   }
 
   function startPuttingObject() {
-    if (localFileStat.size > MAX_PUTOBJECT_SIZE) {
-      uploader.emit('error', new Error("file exceeded max size for putObject"));
-      return;
-    }
     doWithRetry(tryPuttingObject, self.s3RetryCount, self.s3RetryDelay, function(err, data) {
       if (err) {
         uploader.emit('error', err);
@@ -173,16 +136,33 @@ Client.prototype.uploadFile = function(params) {
   }
 
   function tryPuttingObject(cb) {
+    if (localFileStat.size > MAX_PUTOBJECT_SIZE) {
+      var err = new Error("file exceeded max size for putObject");
+      err.retryable = false;
+      uploader.emit('error', err);
+      return;
+    }
     self.s3Pend.go(function(pendCb) {
+      var pend = new Pend();
       var inStream = fs.createReadStream(localFile);
+      uploader.emit('stream', inStream);
       var errorOccurred = false;
       inStream.on('error', function(err) {
         if (errorOccurred) return;
         errorOccurred = true;
         uploader.emit('error', err);
       });
+      var hash = crypto.createHash('md5');
+      pend.go(function(cb) {
+        hash.on('data', function(digest) {
+          localFileStat.md5sum = digest;
+          cb();
+        });
+      });
       s3Params.Body = inStream;
-      s3Params.ContentMD5 = localFileStat.md5sum.toString('base64');
+      if (localFileStat.md5sum) {
+        s3Params.ContentMD5 = localFileStat.md5sum.toString('base64');
+      }
       s3Params.ContentLength = localFileStat.size;
       uploader.progressAmount = 0;
       var counter = new StreamCounter();
@@ -190,7 +170,17 @@ Client.prototype.uploadFile = function(params) {
         uploader.progressAmount = counter.bytes;
         uploader.emit('progress');
       });
+      pend.go(function(cb) {
+        counter.on('finish', function() {
+          uploader.progressAmount = counter.bytes;
+          uploader.progressTotal = counter.bytes;
+          uploader.emit('progress');
+          localFileStat.size = counter.bytes;
+          cb();
+        });
+      });
       inStream.pipe(counter);
+      inStream.pipe(hash);
       self.s3.putObject(s3Params, function(err, data) {
         pendCb();
         if (errorOccurred) return;
@@ -199,12 +189,14 @@ Client.prototype.uploadFile = function(params) {
           cb(err);
           return;
         }
-        if (!compareETag(data.ETag, localFileStat.md5sum)) {
-          errorOccurred = true;
-          cb(new Error("ETag does not match MD5 checksum"));
-          return;
-        }
-        cb(null, data);
+        pend.wait(function() {
+          if (!compareETag(data.ETag, localFileStat.md5sum)) {
+            errorOccurred = true;
+            cb(new Error("ETag does not match MD5 checksum"));
+            return;
+          }
+          cb(null, data);
+        });
       });
     });
   }
@@ -789,12 +781,18 @@ function syncDir(self, params, directionIsToS3) {
         upDownFileParams.localFileStat = localFileStat;
         var uploader = self.uploadFile(upDownFileParams);
         var prevAmountDone = 0;
+        var prevAmountTotal = localFileStat.size;
         uploader.on('error', handleError);
         uploader.on('progress', function() {
           if (fatalError) return;
-          var delta = uploader.progressAmount - prevAmountDone;
+          var amountDelta = uploader.progressAmount - prevAmountDone;
           prevAmountDone = uploader.progressAmount;
-          ee.progressAmount += delta;
+          ee.progressAmount += amountDelta;
+
+          var totalDelta = uploader.progressTotal - prevAmountTotal;
+          prevAmountTotal = uploader.progressTotal;
+          ee.progressTotal += totalDelta;
+
           ee.emit('progress');
         });
         uploader.on('end', checkDoMoreWork);
