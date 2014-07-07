@@ -901,7 +901,9 @@ function syncDir(self, params, directionIsToS3) {
     var walker = findit(dirWithSlash, finditOpts);
     walker.on('error', function(err) {
       walker.stop();
-      if (err.path === dirWithSlash && err.code === 'ENOENT') {
+      // when uploading, we don't want to delete based on a nonexistent source directory
+      // but when downloading, the destination directory does not have to exist.
+      if (!directionIsToS3 && err.path === dirWithSlash && err.code === 'ENOENT') {
         cb();
       } else {
         cb(err);
