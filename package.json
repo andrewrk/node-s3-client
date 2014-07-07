@@ -22,7 +22,7 @@
     "async"
   ],
   "author": "Andrew Kelley",
-  "license": "BSD",
+  "license": "MIT",
   "engines": {
     "node": ">=0.10.20"
   },
