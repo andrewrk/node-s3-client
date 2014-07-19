@@ -18,6 +18,7 @@ var remoteDir = remoteRoot + "dir1";
 var describe = global.describe;
 var it = global.it;
 var after = global.after;
+var before = global.before;
 
 var s3Bucket = process.env.S3_BUCKET;
 
@@ -58,8 +59,24 @@ function createBigFile(size, cb) {
 describe("s3", function () {
   var hexdigest;
 
+  before(function(done) {
+    var client = createClient();
+    var s3Params = {
+      Prefix: remoteRoot,
+      Bucket: s3Bucket,
+    };
+    var deleter = client.deleteDir(s3Params);
+    deleter.on('end', function() {
+      done();
+    });
+  });
+
   after(function(done) {
     rimraf(tempDir, done);
+  });
+
+  after(function() {
+    fs.writeFileSync(path.join(__dirname, "dir3", "index.html"), "");
   });
 
   it("get public URL", function() {
@@ -331,6 +348,45 @@ describe("s3", function () {
           assert.strictEqual(fs.existsSync(path.join(localTmpDir, "file2")), false);
           assert.strictEqual(fs.existsSync(path.join(localTmpDir, "inner2/b")), false);
           assert.strictEqual(fs.existsSync(path.join(localTmpDir, "inner2")), false);
+          done();
+        });
+      });
+    });
+  });
+
+  it("upload folder with delete removed handles updates correctly", function(done) {
+    var client = createClient();
+    var params = {
+      localDir: path.join(__dirname, "dir3"),
+      deleteRemoved: true,
+      s3Params: {
+        Prefix: remoteDir,
+        Bucket: s3Bucket,
+      },
+    };
+    var uploader = client.uploadDir(params);
+    uploader.on('end', function() {
+      // modify a file and upload again. Make sure the list is still intact.
+      fs.writeFileSync(path.join(__dirname, "dir3", "index.html"), "hi");
+      var uploader = client.uploadDir(params);
+      uploader.on('end', function() {
+        var params = {
+          recursive: true,
+          s3Params: {
+            Bucket: s3Bucket,
+            Prefix: remoteDir,
+          },
+        };
+        var client = createClient();
+        var finder = client.listObjects(params);
+        var found = false;
+        finder.on('data', function(data) {
+          assert.strictEqual(data.Contents.length, 2);
+          assert.strictEqual(data.CommonPrefixes.length, 0);
+          found = true;
+        });
+        finder.on('end', function() {
+          assert.strictEqual(found, true);
           done();
         });
       });

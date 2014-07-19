@@ -653,6 +653,8 @@ function syncDir(self, params, directionIsToS3) {
       } else if (localFileStat.s3Path > s3Object.key) {
         deleteS3Object();
       } else if (!compareETag(s3Object.ETag, localFileStat.md5sum)){
+        // both file cursor and s3 cursor should increment
+        s3ObjectCursor += 1;
         uploadLocalFile();
       } else {
         skipThisOne();
@@ -667,6 +669,8 @@ function syncDir(self, params, directionIsToS3) {
       } else if (localFileStat.s3Path > s3Object.key) {
         downloadS3Object();
       } else if (!compareETag(s3Object.ETag, localFileStat.md5sum)){
+        // both file cursor and s3 cursor should increment
+        localFileCursor += 1;
         downloadS3Object();
       } else {
         skipThisOne();
