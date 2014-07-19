@@ -514,6 +514,7 @@ Returns an `EventEmitter` with these events:
 ### 3.1.3
 
  * `uploadDir` and `downloadDir`: fix incorrectly deleting files
+ * update aws-sdk to 2.0.8
 
 ### 3.1.2
 
