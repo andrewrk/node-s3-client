@@ -511,6 +511,24 @@ Returns an `EventEmitter` with these events:
 
 ## History
 
+### 3.1.3
+
+ * `uploadDir` and `downloadDir`: fix incorrectly deleting files
+
+### 3.1.2
+
+ * add license
+ * update aws-sdk to 2.0.6. Fixes SSL download reliability.
+
+### 3.1.1
+
+ * `uploadDir` handles source directory not existing error correctly
+
+### 3.1.0
+
+ * `uploadFile` computes MD5 and sends bytes at the same time
+ * `getPublicUrl` handles `us-east-1` bucket location correctly
+
 ### 3.0.2
 
  * fix upload path on Windows
