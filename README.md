@@ -1,6 +1,6 @@
 # High Level Amazon S3 Client
 
-## Features and Limitations
+## Features
 
  * Automatically retry a configurable number of times when S3 returns an error.
  * Includes logic to make multiple requests when there is a 1000 object limit.
@@ -8,10 +8,12 @@
    Retries get pushed to the end of the paralellization queue.
  * Ability to sync a dir to and from S3.
  * Progress reporting.
- * Limited to files less than 5GB.
- * Limited to objects which were not uploaded using a multipart request.
+ * Supports files of any size (up to S3's maximum 5 TB object size limit).
+ * Uploads large files quickly using parallel multipart uploads.
+ * Downloads large files quickly using the RANGE header and parallel requests.
 
-See also the companion CLI tool, [s3-cli](https://github.com/andrewrk/node-s3-cli).
+See also the companion CLI tool which is meant to be a drop-in replacement for
+s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
 
 ## Synopsis
 
@@ -24,6 +26,10 @@ var client = s3.createClient({
   maxAsyncS3: 14,     // this is the default
   s3RetryCount: 3     // this is the default
   s3RetryDelay: 1000, // this is the default
+  multipartUploadThreshold: 10485760, // this is the default
+  multipartUploadSize: 5242880, // this is the default
+  multipartDownloadThreshold: 10485760, // this is the default
+  multipartDownloadSize: 5242880, // this is the default
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
@@ -150,6 +156,18 @@ Creates an S3 client.
    Default 3.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3
    operation. Default 1000.
+ * `multipartUploadThreshold` - if a file is this many bytes or greater, it
+   will be uploaded via a multipart request. Default is 10MB.
+ * `multipartUploadSize` - when uploading via multipart, this is the part size.
+   The minimum size is 5MB. The maximum size is 5GB. Default is 5MB. Note that
+   S3 has a maximum of 10000 parts for a multipart upload, so if you try to
+   upload a file greater than 48.8GB multipartUploadSize will be automatically
+   increased to the mimimum necessary value.
+ * `multipartDownloadThreshold` - if an S3 object is this many bytes or
+   greater, it will be downloaded via multiple parallel requests. Default is
+   10MB.
+ * `multipartDownloadSize` - when downloading in parallel, this is the size of
+   each part. Default is 5MB.
 
 ### s3.getPublicUrl(bucket, key, [bucketLocation])
 
@@ -200,6 +218,8 @@ The difference between using AWS SDK `putObject` and this one:
 
  * This works with files, not streams or buffers.
  * If the reported MD5 upon upload completion does not match, it retries.
+ * If the file size is large enough, uses multipart upload to upload parts in
+   parallel.
  * Retry based on the client's retry settings.
  * Progress reporting.
 
@@ -233,6 +253,8 @@ The difference between using AWS SDK `getObject` and this one:
 
  * This works with a destination file, not a stream or a buffer.
  * If the reported MD5 upon download completion does not match, it retries.
+ * If the object size is large enough, uses the RANGE header to download parts
+   in parallel.
  * Retry based on the client's retry settings.
  * Progress reporting.
 

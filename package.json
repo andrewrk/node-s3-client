@@ -19,7 +19,11 @@
     "retry",
     "limit",
     "stream",
-    "async"
+    "async",
+    "parallel",
+    "multipart",
+    "range",
+    "size"
   ],
   "author": "Andrew Kelley",
   "license": "MIT",
