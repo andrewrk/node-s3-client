@@ -23,7 +23,7 @@ s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
 var s3 = require('s3');
 
 var client = s3.createClient({
-  maxAsyncS3: 14,     // this is the default
+  maxAsyncS3: 20,     // this is the default
   s3RetryCount: 3     // this is the default
   s3RetryDelay: 1000, // this is the default
   multipartUploadThreshold: 10485760, // this is the default
@@ -151,7 +151,7 @@ Creates an S3 client.
    - See AWS SDK documentation for available options which are passed to `new AWS.S3()`:
      http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
  * `maxAsyncS3` - maximum number of simultaneous requests this client will
-   ever have open to S3. defaults to `14`.
+   ever have open to S3. defaults to `20`.
  * `s3RetryCount` - how many times to try an S3 operation before giving up.
    Default 3.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3

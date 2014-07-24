@@ -35,7 +35,7 @@ function Client(options) {
   options = options || {};
   this.s3 = options.s3Client || new AWS.S3(options.s3Options);
   this.s3Pend = new Pend();
-  this.s3Pend.max = options.maxAsyncS3 || 14;
+  this.s3Pend.max = options.maxAsyncS3 || 20;
   this.s3RetryCount = options.s3RetryCount || 3;
   this.s3RetryDelay = options.s3RetryDelay || 1000;
 }
