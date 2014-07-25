@@ -2,7 +2,7 @@
   "name": "s3",
   "version": "3.1.3",
   "description": "high level amazon s3 client. upload and download files and directories",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
     "test": "mocha"
   },
