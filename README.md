@@ -26,10 +26,10 @@ var client = s3.createClient({
   maxAsyncS3: 20,     // this is the default
   s3RetryCount: 3     // this is the default
   s3RetryDelay: 1000, // this is the default
-  multipartUploadThreshold: 10485760, // this is the default
-  multipartUploadSize: 5242880, // this is the default
-  multipartDownloadThreshold: 10485760, // this is the default
-  multipartDownloadSize: 5242880, // this is the default
+  multipartUploadThreshold: 20971520, // this is the default (20 MB)
+  multipartUploadSize: 15728640, // this is the default (15 MB)
+  multipartDownloadThreshold: 20971520, // this is the default (20 MB)
+  multipartDownloadSize: 15728640, // this is the default (15 MB)
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
@@ -157,17 +157,18 @@ Creates an S3 client.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3
    operation. Default 1000.
  * `multipartUploadThreshold` - if a file is this many bytes or greater, it
-   will be uploaded via a multipart request. Default is 10MB.
+   will be uploaded via a multipart request. Default is 20MB. Minimum is 5MB.
+   Maximum is 5GB.
  * `multipartUploadSize` - when uploading via multipart, this is the part size.
-   The minimum size is 5MB. The maximum size is 5GB. Default is 5MB. Note that
-   S3 has a maximum of 10000 parts for a multipart upload, so if you try to
-   upload a file greater than 48.8GB multipartUploadSize will be automatically
-   increased to the mimimum necessary value.
+   The minimum size is 5MB. The maximum size is 5GB. Default is 15MB. Note that
+   S3 has a maximum of 10000 parts for a multipart upload, so if this value is
+   too small, it will be ignored in favor of the minimum necessary value
+   required to upload the file.
  * `multipartDownloadThreshold` - if an S3 object is this many bytes or
    greater, it will be downloaded via multiple parallel requests. Default is
-   10MB.
+   20MB. Set to `Infinity` to never do multipart downloads.
  * `multipartDownloadSize` - when downloading in parallel, this is the size of
-   each part. Default is 5MB.
+   each part. Default is 15MB.
 
 ### s3.getPublicUrl(bucket, key, [bucketLocation])
 
@@ -235,10 +236,13 @@ And these events:
  * `'end' (data)` - emitted when the file is uploaded successfully
    - `data` is the same object that you get from `putObject` in AWS SDK
  * `'progress'` - emitted when `progressMd5Amount`, `progressAmount`, and
-   `progressTotal` properties change.
- * `'stream' (stream)` - emitted when a `ReadableStream` for `localFile` has
+   `progressTotal` properties change. Note that it is possible for progress to
+   go backwards when an upload fails and must be retried.
+ * `'stream' (stream, params)` - emitted when a `ReadableStream` for `localFile` has
    been opened. Be aware that this might fire multiple times if a request to S3
-   must be retried.
+   must be retried. Additionally, if `multipartUploadThreshold` was reached,
+   this event will fire for each part instead of a single stream for the entire
+   file.
 
 ### client.downloadFile(params)
 
