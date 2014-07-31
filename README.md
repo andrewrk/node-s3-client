@@ -22,7 +22,7 @@ var s3 = require('s3');
 
 var client = s3.createClient({
   maxAsyncS3: 14,     // this is the default
-  s3RetryCount: 3     // this is the default
+  s3RetryCount: 3,    // this is the default
   s3RetryDelay: 1000, // this is the default
   s3Options: {
     accessKeyId: "your s3 key",
