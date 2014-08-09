@@ -405,7 +405,7 @@ function getS3Params(localFile, s3Object, callback) {
   var s3Params = { // if there is no error
     VersionId: "abcd", // just an example
   };
-  // pass `null` for `s3Params` if you want to skip dowlnoading this object.
+  // pass `null` for `s3Params` if you want to skip downloading this object.
   callback(err, s3Params);
 }
 ```
