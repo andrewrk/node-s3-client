@@ -7,7 +7,6 @@
    it emits 'fdSlicer' instead.
  * default maxAsyncS3 increased from 14 to 20
  * added `multipartUploadThreshold`, `multipartUploadSize`
- * added `multipartDownloadThreshold`, `multipartDownloadSize`
 
 ### 3.1.3
 

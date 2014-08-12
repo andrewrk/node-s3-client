@@ -10,7 +10,8 @@
  * Progress reporting.
  * Supports files of any size (up to S3's maximum 5 TB object size limit).
  * Uploads large files quickly using parallel multipart uploads.
- * Downloads large files quickly using the RANGE header and parallel requests.
+ * Uses heuristics to compute multipart ETags client-side to avoid uploading
+   or downloading files unnecessarily.
 
 See also the companion CLI tool which is meant to be a drop-in replacement for
 s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
@@ -28,8 +29,6 @@ var client = s3.createClient({
   s3RetryDelay: 1000, // this is the default
   multipartUploadThreshold: 20971520, // this is the default (20 MB)
   multipartUploadSize: 15728640, // this is the default (15 MB)
-  multipartDownloadThreshold: 20971520, // this is the default (20 MB)
-  multipartDownloadSize: 15728640, // this is the default (15 MB)
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
@@ -164,11 +163,6 @@ Creates an S3 client.
    S3 has a maximum of 10000 parts for a multipart upload, so if this value is
    too small, it will be ignored in favor of the minimum necessary value
    required to upload the file.
- * `multipartDownloadThreshold` - if an S3 object is this many bytes or
-   greater, it will be downloaded via multiple parallel requests. Default is
-   20MB. Set to `Infinity` to never do multipart downloads.
- * `multipartDownloadSize` - when downloading in parallel, this is the size of
-   each part. Default is 15MB.
 
 ### s3.getPublicUrl(bucket, key, [bucketLocation])
 
@@ -263,8 +257,6 @@ The difference between using AWS SDK `getObject` and this one:
 
  * This works with a destination file, not a stream or a buffer.
  * If the reported MD5 upon download completion does not match, it retries.
- * If the object size is large enough, uses the RANGE header to download parts
-   in parallel.
  * Retry based on the client's retry settings.
  * Progress reporting.
 
