@@ -1,4 +1,5 @@
 var s3 = require('../');
+var MultipartETag = require('../lib/multipart_etag');
 var path = require('path');
 var ncp = require('ncp');
 var Pend = require('pend');
@@ -59,6 +60,29 @@ function createBigFile(size, cb) {
     out.end();
   });
 }
+
+var file1Md5 = "b1946ac92492d2347c6235b4d2611184";
+describe("MultipartETag", function() {
+  it("returns unmodified digest", function(done) {
+    var inStream = fs.createReadStream(path.join(__dirname, "dir1", "file1"));
+    var multipartETag = new MultipartETag();
+    var bytes;
+    var progressEventCount = 0;
+    multipartETag.on('progress', function() {
+      bytes = multipartETag.bytes;
+      progressEventCount += 1;
+    });
+    multipartETag.on('end', function() {
+      assert.ok(progressEventCount > 0);
+      assert.strictEqual(bytes, 6);
+      assert.strictEqual(multipartETag.digest.toString('hex'), file1Md5);
+      assert.ok(multipartETag.anyMatch(file1Md5));
+      done();
+    });
+    inStream.pipe(multipartETag);
+    multipartETag.resume();
+  });
+});
 
 describe("s3", function () {
   var hexdigest;
@@ -229,7 +253,7 @@ describe("s3", function () {
       assertFilesMd5([
         {
           path: path.join(localDir, "file1"),
-          md5: "b1946ac92492d2347c6235b4d2611184",
+          md5: file1Md5,
         },
         {
           path: path.join(localDir, "file2"),
