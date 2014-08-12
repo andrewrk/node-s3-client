@@ -398,7 +398,6 @@ describe("s3", function () {
   });
 
   it("multipart upload", function(done) {
-    console.log("create big file");
     createBigFile(16 * 1024 * 1024, function (err, _hexdigest) {
       if (err) return done(err);
       var client = createClient();
@@ -409,7 +408,6 @@ describe("s3", function () {
           Bucket: s3Bucket,
         },
       };
-      console.log("upload file");
       var uploader = client.uploadFile(params);
       uploader.on('error', done);
       var progress = 0;
