@@ -29,6 +29,8 @@ if (!s3Bucket || !process.env.S3_KEY || !process.env.S3_SECRET) {
 
 function createClient() {
   return s3.createClient({
+    multipartUploadThreshold: 15 * 1024 * 1024,
+    multipartUploadSize: 5 * 1024 * 1024,
     s3Options: {
       accessKeyId: process.env.S3_KEY,
       secretAccessKey: process.env.S3_SECRET,
@@ -48,10 +50,12 @@ function createBigFile(size, cb) {
       cb(null, md5sum.digest('hex'));
     });
     var str = "abcdefghijklmnopqrstuvwxyz";
+    var buf = "";
     for (var i = 0; i < size; ++i) {
-      out.write(str);
-      md5sum.update(str);
+      buf += str[i % str.length];
     }
+    out.write(buf);
+    md5sum.update(buf);
     out.end();
   });
 }
@@ -91,7 +95,7 @@ describe("s3", function () {
   });
 
   it("uploads", function(done) {
-    createBigFile(4000, function (err, _hexdigest) {
+    createBigFile(120 * 1024, function (err, _hexdigest) {
       if (err) return done(err);
       hexdigest = _hexdigest;
       var client = createClient();
@@ -389,6 +393,40 @@ describe("s3", function () {
           assert.strictEqual(found, true);
           done();
         });
+      });
+    });
+  });
+
+  it("multipart upload", function(done) {
+    console.log("create big file");
+    createBigFile(16 * 1024 * 1024, function (err, _hexdigest) {
+      if (err) return done(err);
+      var client = createClient();
+      var params = {
+        localFile: localFile,
+        s3Params: {
+          Key: remoteFile,
+          Bucket: s3Bucket,
+        },
+      };
+      console.log("upload file");
+      var uploader = client.uploadFile(params);
+      uploader.on('error', done);
+      var progress = 0;
+      var progressEventCount = 0;
+      uploader.on('progress', function() {
+        var amountDone = uploader.progressAmount;
+        var amountTotal = uploader.progressTotal;
+        var newProgress = amountDone / amountTotal;
+        progressEventCount += 1;
+        assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);
+        progress = newProgress;
+      });
+      uploader.on('end', function(data) {
+        assert.strictEqual(progress, 1);
+        assert(progressEventCount >= 2, "expected at least 2 progress events. got " + progressEventCount);
+        assert.ok(data, "expected data. got " + data);
+        done();
       });
     });
   });

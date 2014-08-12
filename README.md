@@ -246,6 +246,10 @@ And these events:
    multipart. `fdSlicer` is a [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
    instance which you can create your own read streams from.
 
+And these methods:
+
+ * `abort()` - call this to stop the find operation.
+
 ### client.downloadFile(params)
 
 See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
