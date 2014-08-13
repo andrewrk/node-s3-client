@@ -77,6 +77,8 @@ describe("MultipartETag", function() {
       assert.strictEqual(bytes, 6);
       assert.strictEqual(multipartETag.digest.toString('hex'), file1Md5);
       assert.ok(multipartETag.anyMatch(file1Md5));
+      assert.strictEqual(multipartETag.anyMatch(""), false);
+      assert.strictEqual(multipartETag.anyMatch(null), false);
       done();
     });
     inStream.pipe(multipartETag);
