@@ -1,4 +1,4 @@
-### 4.0.0 (UNRELEASED)
+### 4.0.0
 
  * support for multipart uploading and downloading. This raises the maximum
    supported file size to the S3 maximum of 5 TB. It also allows this module
