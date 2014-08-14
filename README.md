@@ -232,13 +232,11 @@ And these events:
  * `'progress'` - emitted when `progressMd5Amount`, `progressAmount`, and
    `progressTotal` properties change. Note that it is possible for progress to
    go backwards when an upload fails and must be retried.
- * `'stream' (stream)` - emitted when a `ReadableStream` for `localFile` has
-   been opened. Be aware that this might fire multiple times if a request to S3
-   must be retried. If `multipartUploadThreshold` was reached, this event is not
-   fired. Instead, `'fdSlicer`` is emitted.
- * `'fdSlicer' (fdSlicer)` - this event is emitted when a file is uploaded via
-   multipart. `fdSlicer` is a [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
-   instance which you can create your own read streams from.
+ * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
+   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
+   module because we might need to read from multiple locations in the file at
+   the same time. `fdSlicer` is an object for which you can call
+   `createReadStream(options)`. See the fd-slicer README for more information.
 
 And these methods:
 
