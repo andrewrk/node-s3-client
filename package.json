@@ -30,8 +30,8 @@
     "node": ">=0.10.20"
   },
   "devDependencies": {
-    "mocha": "~1.18.2",
-    "ncp": "~0.5.1"
+    "mocha": "~1.21.4",
+    "ncp": "~0.6.0"
   },
   "dependencies": {
     "aws-sdk": "~2.0.12",
