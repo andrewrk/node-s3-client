@@ -3,13 +3,14 @@
  * support for multipart uploading and downloading. This raises the maximum
    supported file size to the S3 maximum of 5 TB. It also allows this module
    to be used to download files which were uploaded via multipart.
- * uploadFile no longer emits 'stream' (possibly multiple times). Instead, it
+ * `uploadFile` no longer emits 'stream' (possibly multiple times). Instead, it
    emits 'fileOpened' exactly once, and the parameter can be used to create
    read streams.
- * default maxAsyncS3 increased from 14 to 20
- * added `multipartUploadThreshold`, `multipartUploadSize`
- * uploadFile uses fstat instead of stat. Fixes a possible file system race
+ * `uploadFile` uses fstat instead of stat. Fixes a possible file system race
    condition.
+ * `uploadfile` no longer accepts the `localFileStat` parameter.
+ * default `maxAsyncS3` increased from 14 to 20
+ * added `multipartUploadThreshold`, `multipartUploadSize`
 
 ### 3.1.3
 
