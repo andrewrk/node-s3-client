@@ -1,4 +1,5 @@
 var s3 = require('../');
+var MultipartETag = require('../lib/multipart_etag');
 var path = require('path');
 var ncp = require('ncp');
 var Pend = require('pend');
@@ -29,6 +30,8 @@ if (!s3Bucket || !process.env.S3_KEY || !process.env.S3_SECRET) {
 
 function createClient() {
   return s3.createClient({
+    multipartUploadThreshold: 15 * 1024 * 1024,
+    multipartUploadSize: 5 * 1024 * 1024,
     s3Options: {
       accessKeyId: process.env.S3_KEY,
       secretAccessKey: process.env.S3_SECRET,
@@ -48,13 +51,40 @@ function createBigFile(size, cb) {
       cb(null, md5sum.digest('hex'));
     });
     var str = "abcdefghijklmnopqrstuvwxyz";
+    var buf = "";
     for (var i = 0; i < size; ++i) {
-      out.write(str);
-      md5sum.update(str);
+      buf += str[i % str.length];
     }
+    out.write(buf);
+    md5sum.update(buf);
     out.end();
   });
 }
+
+var file1Md5 = "b1946ac92492d2347c6235b4d2611184";
+describe("MultipartETag", function() {
+  it("returns unmodified digest", function(done) {
+    var inStream = fs.createReadStream(path.join(__dirname, "dir1", "file1"));
+    var multipartETag = new MultipartETag();
+    var bytes;
+    var progressEventCount = 0;
+    multipartETag.on('progress', function() {
+      bytes = multipartETag.bytes;
+      progressEventCount += 1;
+    });
+    multipartETag.on('end', function() {
+      assert.ok(progressEventCount > 0);
+      assert.strictEqual(bytes, 6);
+      assert.strictEqual(multipartETag.digest.toString('hex'), file1Md5);
+      assert.ok(multipartETag.anyMatch(file1Md5));
+      assert.strictEqual(multipartETag.anyMatch(""), false);
+      assert.strictEqual(multipartETag.anyMatch(null), false);
+      done();
+    });
+    inStream.pipe(multipartETag);
+    multipartETag.resume();
+  });
+});
 
 describe("s3", function () {
   var hexdigest;
@@ -91,7 +121,7 @@ describe("s3", function () {
   });
 
   it("uploads", function(done) {
-    createBigFile(4000, function (err, _hexdigest) {
+    createBigFile(120 * 1024, function (err, _hexdigest) {
       if (err) return done(err);
       hexdigest = _hexdigest;
       var client = createClient();
@@ -124,42 +154,7 @@ describe("s3", function () {
   });
 
   it("downloads", function(done) {
-    fs.unlink(localFile, function(err) {
-      if (err) return done(err);
-      var client = createClient();
-      var params = {
-        localFile: localFile,
-        s3Params: {
-          Key: remoteFile,
-          Bucket: s3Bucket,
-        },
-      };
-      var downloader = client.downloadFile(params);
-      downloader.on('error', done);
-      var progress = 0;
-      var progressEventCount = 0;
-      downloader.on('progress', function() {
-        var amountDone = downloader.progressAmount;
-        var amountTotal = downloader.progressTotal;
-        var newProgress = amountDone / amountTotal;
-        progressEventCount += 1;
-        assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);
-        progress = newProgress;
-      });
-      downloader.on('end', function() {
-        assert.strictEqual(progress, 1);
-        assert(progressEventCount >= 3, "expected at least 3 progress events. got " + progressEventCount);
-        var reader = fs.createReadStream(localFile);
-        var md5sum = crypto.createHash('md5');
-        reader.on('data', function(data) {
-          md5sum.update(data);
-        });
-        reader.on('end', function() {
-          assert.strictEqual(md5sum.digest('hex'), hexdigest);
-          fs.unlink(localFile, done);
-        });
-      });
-    });
+    doDownloadFileTest(done);
   });
 
   it("lists objects", function(done) {
@@ -260,7 +255,7 @@ describe("s3", function () {
       assertFilesMd5([
         {
           path: path.join(localDir, "file1"),
-          md5: "b1946ac92492d2347c6235b4d2611184",
+          md5: file1Md5,
         },
         {
           path: path.join(localDir, "file2"),
@@ -393,6 +388,43 @@ describe("s3", function () {
     });
   });
 
+  it("multipart upload", function(done) {
+    createBigFile(16 * 1024 * 1024, function (err, _hexdigest) {
+      if (err) return done(err);
+      hexdigest = _hexdigest;
+      var client = createClient();
+      var params = {
+        localFile: localFile,
+        s3Params: {
+          Key: remoteFile,
+          Bucket: s3Bucket,
+        },
+      };
+      var uploader = client.uploadFile(params);
+      uploader.on('error', done);
+      var progress = 0;
+      var progressEventCount = 0;
+      uploader.on('progress', function() {
+        var amountDone = uploader.progressAmount;
+        var amountTotal = uploader.progressTotal;
+        var newProgress = amountDone / amountTotal;
+        progressEventCount += 1;
+        assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);
+        progress = newProgress;
+      });
+      uploader.on('end', function(data) {
+        assert.strictEqual(progress, 1);
+        assert(progressEventCount >= 2, "expected at least 2 progress events. got " + progressEventCount);
+        assert.ok(data, "expected data. got " + data);
+        done();
+      });
+    });
+  });
+
+  it("download file with multipart etag", function(done) {
+    doDownloadFileTest(done);
+  });
+
   it("deletes a folder", function(done) {
     var client = createClient();
     var s3Params = {
@@ -404,6 +436,45 @@ describe("s3", function () {
       done();
     });
   });
+
+  function doDownloadFileTest(done) {
+    fs.unlink(localFile, function(err) {
+      if (err) return done(err);
+      var client = createClient();
+      var params = {
+        localFile: localFile,
+        s3Params: {
+          Key: remoteFile,
+          Bucket: s3Bucket,
+        },
+      };
+      var downloader = client.downloadFile(params);
+      downloader.on('error', done);
+      var progress = 0;
+      var progressEventCount = 0;
+      downloader.on('progress', function() {
+        var amountDone = downloader.progressAmount;
+        var amountTotal = downloader.progressTotal;
+        var newProgress = amountDone / amountTotal;
+        progressEventCount += 1;
+        assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);
+        progress = newProgress;
+      });
+      downloader.on('end', function() {
+        assert.strictEqual(progress, 1);
+        assert(progressEventCount >= 3, "expected at least 3 progress events. got " + progressEventCount);
+        var reader = fs.createReadStream(localFile);
+        var md5sum = crypto.createHash('md5');
+        reader.on('data', function(data) {
+          md5sum.update(data);
+        });
+        reader.on('end', function() {
+          assert.strictEqual(md5sum.digest('hex'), hexdigest);
+          fs.unlink(localFile, done);
+        });
+      });
+    });
+  }
 });
 
 function assertFilesMd5(list, cb) {

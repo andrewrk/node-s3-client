@@ -1,6 +1,6 @@
 # High Level Amazon S3 Client
 
-## Features and Limitations
+## Features
 
  * Automatically retry a configurable number of times when S3 returns an error.
  * Includes logic to make multiple requests when there is a 1000 object limit.
@@ -8,10 +8,13 @@
    Retries get pushed to the end of the paralellization queue.
  * Ability to sync a dir to and from S3.
  * Progress reporting.
- * Limited to files less than 5GB.
- * Limited to objects which were not uploaded using a multipart request.
+ * Supports files of any size (up to S3's maximum 5 TB object size limit).
+ * Uploads large files quickly using parallel multipart uploads.
+ * Uses heuristics to compute multipart ETags client-side to avoid uploading
+   or downloading files unnecessarily.
 
-See also the companion CLI tool, [s3-cli](https://github.com/andrewrk/node-s3-cli).
+See also the companion CLI tool which is meant to be a drop-in replacement for
+s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
 
 ## Synopsis
 
@@ -21,9 +24,11 @@ See also the companion CLI tool, [s3-cli](https://github.com/andrewrk/node-s3-cl
 var s3 = require('s3');
 
 var client = s3.createClient({
-  maxAsyncS3: 14,     // this is the default
+  maxAsyncS3: 20,     // this is the default
   s3RetryCount: 3,    // this is the default
   s3RetryDelay: 1000, // this is the default
+  multipartUploadThreshold: 20971520, // this is the default (20 MB)
+  multipartUploadSize: 15728640, // this is the default (15 MB)
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
@@ -145,11 +150,19 @@ Creates an S3 client.
    - See AWS SDK documentation for available options which are passed to `new AWS.S3()`:
      http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
  * `maxAsyncS3` - maximum number of simultaneous requests this client will
-   ever have open to S3. defaults to `14`.
+   ever have open to S3. defaults to `20`.
  * `s3RetryCount` - how many times to try an S3 operation before giving up.
    Default 3.
  * `s3RetryDelay` - how many milliseconds to wait before retrying an S3
    operation. Default 1000.
+ * `multipartUploadThreshold` - if a file is this many bytes or greater, it
+   will be uploaded via a multipart request. Default is 20MB. Minimum is 5MB.
+   Maximum is 5GB.
+ * `multipartUploadSize` - when uploading via multipart, this is the part size.
+   The minimum size is 5MB. The maximum size is 5GB. Default is 15MB. Note that
+   S3 has a maximum of 10000 parts for a multipart upload, so if this value is
+   too small, it will be ignored in favor of the minimum necessary value
+   required to upload the file.
 
 ### s3.getPublicUrl(bucket, key, [bucketLocation])
 
@@ -193,13 +206,13 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-pro
 
  * `s3Params`: params to pass to AWS SDK `putObject`.
  * `localFile`: path to the file on disk you want to upload to S3.
- * `localFileStat`: optional - if you happen to already have the stat object
-   from `fs.stat`, you can provide it here.
 
 The difference between using AWS SDK `putObject` and this one:
 
  * This works with files, not streams or buffers.
  * If the reported MD5 upon upload completion does not match, it retries.
+ * If the file size is large enough, uses multipart upload to upload parts in
+   parallel.
  * Retry based on the client's retry settings.
  * Progress reporting.
 
@@ -215,10 +228,17 @@ And these events:
  * `'end' (data)` - emitted when the file is uploaded successfully
    - `data` is the same object that you get from `putObject` in AWS SDK
  * `'progress'` - emitted when `progressMd5Amount`, `progressAmount`, and
-   `progressTotal` properties change.
- * `'stream' (stream)` - emitted when a `ReadableStream` for `localFile` has
-   been opened. Be aware that this might fire multiple times if a request to S3
-   must be retried.
+   `progressTotal` properties change. Note that it is possible for progress to
+   go backwards when an upload fails and must be retried.
+ * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
+   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
+   module because we might need to read from multiple locations in the file at
+   the same time. `fdSlicer` is an object for which you can call
+   `createReadStream(options)`. See the fd-slicer README for more information.
+
+And these methods:
+
+ * `abort()` - call this to stop the find operation.
 
 ### client.downloadFile(params)
 
@@ -509,95 +529,5 @@ Returns an `EventEmitter` with these events:
 
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`
 
-## History
-
-### 3.1.3
-
- * `uploadDir` and `downloadDir`: fix incorrectly deleting files
- * update aws-sdk to 2.0.8
-
-### 3.1.2
-
- * add license
- * update aws-sdk to 2.0.6. Fixes SSL download reliability.
-
-### 3.1.1
-
- * `uploadDir` handles source directory not existing error correctly
-
-### 3.1.0
-
- * `uploadFile` computes MD5 and sends bytes at the same time
- * `getPublicUrl` handles `us-east-1` bucket location correctly
-
-### 3.0.2
-
- * fix upload path on Windows
-
-### 3.0.1
-
- * Default `maxAsyncS3` setting change from `30` to `14`.
- * Add `Expect: 100-continue` header to downloads.
-
-### 3.0.0
-
- * `uploadDir` and `downloadDir` completely rewritten with more efficient
-   algorithm, which is explained in the documentation.
- * Default `maxAsyncS3` setting changed from `Infinity` to `30`.
- * No longer recommend adding graceful-fs to your app.
- * No longer recommend increasing ulimit for number of open files.
- * Add `followSymlinks` option to `uploadDir` and `downloadDir`
- * `uploadDir` and `downloadDir` support these additional progress properties:
-   - `filesFound`
-   - `objectsFound`
-   - `deleteAmount`
-   - `deleteTotal`
-   - `doneFindingFiles`
-   - `doneFindingObjects`
-   - `progressMd5Amount`
-   - `progressMd5Total`
-   - `doneMd5`
-
-### 2.0.0
-
- * `getPublicUrl` API changed to support bucket regions. Use `getPublicUrlHttp`
-   if you want an insecure URL.
-
-### 1.3.0
-
- * `downloadFile` respects `maxAsyncS3`
- * Add `copyObject` API
- * AWS JS SDK updated to 2.0.0-rc.18
- * errors with `retryable` set to `false` are not retried
- * Add `moveObject` API
- * `uploadFile` emits a `stream` event.
-
-### 1.2.1
-
- * fix `listObjects` for greater than 1000 objects
- * `downloadDir` supports `getS3Params` parameter
- * `uploadDir` and `downloadDir` expose `objectsFound` progress
-
-### 1.2.0
-
- * `uploadDir` accepts `getS3Params` function parameter
-
-### 1.1.1
-
- * fix handling of directory seperator in Windows
- * allow `uploadDir` and `downloadDir` with empty `Prefix`
-
-### 1.1.0
-
- * Add an API function to get the HTTP url to an S3 resource
-
-### 1.0.0
-
- * complete module rewrite
- * depend on official AWS SDK instead of knox
- * support `uploadDir`, `downloadDir`, `listObjects`, `deleteObject`, and `deleteDir`
-
-### 0.3.1
-
- * fix `resp.req.url` sometimes not defined causing crash
- * fix emitting `end` event before write completely finished
+Tests upload and download large amounts of data to and from S3. The test
+timeout is set to 40 seconds because Internet connectivity waries wildly.
