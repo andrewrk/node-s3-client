@@ -22,7 +22,6 @@
     "async",
     "parallel",
     "multipart",
-    "range",
     "size"
   ],
   "author": "Andrew Kelley",
