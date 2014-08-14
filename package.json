@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/superjoe30/node-s3-client"
+    "url": "https://github.com/andrewrk/node-s3-client"
   },
   "keywords": [
     "amazon",
@@ -41,5 +41,11 @@
     "pend": "~1.1.2",
     "rimraf": "~2.2.8",
     "fd-slicer": "~0.1.0"
+  },
+  "bugs": {
+    "url": "https://github.com/andrewrk/node-s3-client/issues"
+  },
+  "directories": {
+    "test": "test"
   }
 }
