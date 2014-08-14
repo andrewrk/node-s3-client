@@ -8,6 +8,8 @@
    read streams.
  * default maxAsyncS3 increased from 14 to 20
  * added `multipartUploadThreshold`, `multipartUploadSize`
+ * uploadFile uses fstat instead of stat. Fixes a possible file system race
+   condition.
 
 ### 3.1.3
 

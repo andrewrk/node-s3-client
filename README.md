@@ -206,8 +206,6 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-pro
 
  * `s3Params`: params to pass to AWS SDK `putObject`.
  * `localFile`: path to the file on disk you want to upload to S3.
- * `localFileStat`: optional - if you happen to already have the stat object
-   from `fs.stat`, you can provide it here.
 
 The difference between using AWS SDK `putObject` and this one:
 
