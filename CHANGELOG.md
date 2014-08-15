@@ -1,3 +1,8 @@
+### 4.1.0
+
+ * Content-Type header is now automatically filled out if you do not explicitly
+   provide it or set it to `null`.
+
 ### 4.0.0
 
  * support for multipart uploading and downloading. This raises the maximum
