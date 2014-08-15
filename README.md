@@ -12,6 +12,7 @@
  * Uploads large files quickly using parallel multipart uploads.
  * Uses heuristics to compute multipart ETags client-side to avoid uploading
    or downloading files unnecessarily.
+ * Automatically provide Content-Type for uploads based on file extension.
 
 See also the companion CLI tool which is meant to be a drop-in replacement for
 s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
@@ -215,6 +216,7 @@ The difference between using AWS SDK `putObject` and this one:
    parallel.
  * Retry based on the client's retry settings.
  * Progress reporting.
+ * Sets the `ContentType` based on file extension if you do not provide it.
 
 Returns an `EventEmitter` with these properties:
 

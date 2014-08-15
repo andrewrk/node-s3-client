@@ -9,7 +9,7 @@ var mkdirp = require('mkdirp');
 var crypto = require('crypto');
 var rimraf = require('rimraf');
 var tempDir = path.join(__dirname, 'tmp');
-var localFile = path.join(tempDir, 'random');
+var localFile = path.join(tempDir, 'random.png');
 var remoteRoot = "node-s3-test/";
 var remoteFile = remoteRoot + "file.png";
 var remoteFile2 = remoteRoot + "file2.png";
@@ -452,6 +452,7 @@ describe("s3", function () {
       downloader.on('error', done);
       var progress = 0;
       var progressEventCount = 0;
+      var gotHttpHeaders = false;
       downloader.on('progress', function() {
         var amountDone = downloader.progressAmount;
         var amountTotal = downloader.progressTotal;
@@ -459,6 +460,11 @@ describe("s3", function () {
         progressEventCount += 1;
         assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);
         progress = newProgress;
+      });
+      downloader.on('httpHeaders', function(statusCode, headers, resp) {
+        var contentType = headers['content-type'];
+        assert.strictEqual(contentType, "image/png");
+        gotHttpHeaders = true;
       });
       downloader.on('end', function() {
         assert.strictEqual(progress, 1);
@@ -470,6 +476,7 @@ describe("s3", function () {
         });
         reader.on('end', function() {
           assert.strictEqual(md5sum.digest('hex'), hexdigest);
+          assert.ok(gotHttpHeaders);
           fs.unlink(localFile, done);
         });
       });

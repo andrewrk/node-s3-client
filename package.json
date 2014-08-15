@@ -40,7 +40,8 @@
     "mkdirp": "~0.5.0",
     "pend": "~1.1.2",
     "rimraf": "~2.2.8",
-    "fd-slicer": "~0.1.0"
+    "fd-slicer": "~0.1.0",
+    "mime": "~1.2.11"
   },
   "bugs": {
     "url": "https://github.com/andrewrk/node-s3-client/issues"
