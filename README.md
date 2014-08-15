@@ -13,6 +13,9 @@
  * Uses heuristics to compute multipart ETags client-side to avoid uploading
    or downloading files unnecessarily.
  * Automatically provide Content-Type for uploads based on file extension.
+ * Supports uploading a stream with unknown Content-Length. Streams
+   simultaneously to S3 as well as a temp file, to keep memory footprint low
+   and be able to retry when S3 fails.
 
 See also the companion CLI tool which is meant to be a drop-in replacement for
 s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
@@ -128,6 +131,34 @@ uploader.on('end', function() {
 });
 ```
 
+### Upload a stream to S3
+
+```js
+var params = {
+  stream: someReadableStream,
+  filename: "filename.txt", // optional, provide a filename so that
+                            // Content-Type can be automatically populated.
+  s3Params: {
+    Bucket: "s3 bucket name",
+    Key: "some/remote/file",
+    ContentLength: 1024,  // optional, some optimizations can be made if you
+                          // know the Content-Length ahead of time
+    // other options supported by putObject, except Body
+    // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+  },
+};
+var uploader = client.uploadStream(params);
+uploader.on('error', function(err) {
+  console.error("unable to upload:", err.stack);
+});
+uploader.on('progress', function() {
+  console.log("progress", uploader.progressAmount, uploader.progressTotal);
+});
+uploader.on('end', function() {
+  console.log("done uploading");
+});
+```
+
 ## Tips
 
  * Consider increasing the socket pool size in the `http` and `https` global
@@ -225,7 +256,6 @@ The difference between using AWS SDK `putObject` and this one:
 
 Returns an `EventEmitter` with these properties:
 
- * `progressMd5Amount`
  * `progressAmount`
  * `progressTotal`
 
@@ -234,9 +264,9 @@ And these events:
  * `'error' (err)`
  * `'end' (data)` - emitted when the file is uploaded successfully
    - `data` is the same object that you get from `putObject` in AWS SDK
- * `'progress'` - emitted when `progressMd5Amount`, `progressAmount`, and
-   `progressTotal` properties change. Note that it is possible for progress to
-   go backwards when an upload fails and must be retried.
+ * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
+   change. Note that it is possible for progress to go backwards when S3 fails
+   and the upload must be retried.
  * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
    is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
    module because we might need to read from multiple locations in the file at
@@ -245,7 +275,7 @@ And these events:
 
 And these methods:
 
- * `abort()` - call this to stop the find operation.
+ * `abort()` - call this to stop the operation.
 
 ### client.downloadFile(params)
 
@@ -318,7 +348,7 @@ And these events:
 
 And these methods:
 
- * `abort()` - call this to stop the find operation.
+ * `abort()` - call this to stop the operation.
 
 ### client.deleteObjects(s3Params)
 
@@ -535,6 +565,128 @@ Returns an `EventEmitter` with these events:
  * `'error' (err)`
  * `'copySuccess' (data)`
  * `'end' (data)`
+
+### client.uploadStream(params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+
+`params`:
+
+ * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body`.
+   Some optimizations can be made if you provide `ContentLength`, but it is
+   optional.
+ * (optional) `filename`: provide a filename so that Content-Type can be
+   automatically populated.
+ * (optional) `partSize`: This is the size of each part in the multipart
+   upload. Defaults to 5MB which is the minimum S3 allows. Note that S3 has a
+   maximum of 10000 parts, so `10000 * partSize` is the maximum size of the
+   stream that you can upload. The maximum value for `partSize` is 5GB.
+ * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
+   parameter in `s3Params`, it will be automatically set for you based on the
+   file extension of `filename`. If the extension is unrecognized,
+   `defaultContentType` will be used instead. Defaults to
+   `application/octet-stream`.
+
+The difference between using AWS SDK `putObject` and this one:
+
+ * This works with a stream, not a file or buffer.
+ * Does not require knowing `ContentLength` ahead of time.
+ * Performs a multipart upload.
+ * If the reported MD5 upon upload completion does not match, it retries.
+ * Retry based on the client's retry settings. Writes the stream to a temp
+   file in case retry is needed. Temp file is automatically cleaned up.
+ * Progress reporting.
+ * Sets the `ContentType` based on file extension if you do not provide it.
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end' (data)` - emitted when the file is uploaded successfully
+   - `data` is the same object that you get from `putObject` in AWS SDK
+ * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
+   change. Note that it is possible for progress to go backwards when S3 fails
+   and the upload must be retried.
+ * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
+   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
+   module because we might need to read from multiple locations in the file at
+   the same time. `fdSlicer` is an object for which you can call
+   `createReadStream(options)`. See the fd-slicer README for more information.
+
+And these methods:
+
+ * `abort()` - call this to stop the operation.
+
+`uploadStream` works like this:
+
+ 0. Open a temp file with w+ flags and start streaming to it.
+ 0. If `ContentLength` is provided, we can proceed. Otherwise wait until
+    `partSize` bytes have been written to the temp file or the stream is
+    complete.
+ 0. If the stream is complete, begin a `putObject`. Otherwise begin a multipart
+    upload.
+ 0. Stream the still-open temp file into the upload. Streaming from disk rather
+    than buffering `partSize` in memory gives us a low memory footprint.
+ 0. If the upload completes successfully to S3, then we remove the temp file
+    and we're done.
+ 0. If S3 fails, then we retry the upload using the temp file (we still haven't
+    closed it). The retry will know the Content-Length. If all the retries fail
+    or we succeed then we remove the temp file.
+
+### client.uploadFd(params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+
+`params`:
+
+ * `fd`: The file descriptor to read from.
+ * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body` and
+   `ContentLength`.
+ * (optional) `filename`: provide a filename so that Content-Type can be
+   automatically populated.
+ * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
+   parameter in `s3Params`, it will be automatically set for you based on the
+   file extension of `filename`. If the extension is unrecognized,
+   `defaultContentType` will be used instead. Defaults to
+   `application/octet-stream`.
+
+The difference between using AWS SDK `putObject` and this one:
+
+ * This works with fds, not files, streams, or buffers.
+ * If the reported MD5 upon upload completion does not match, it retries.
+ * If the file size is large enough, uses multipart upload to upload parts in
+   parallel.
+ * Retry based on the client's retry settings.
+ * Progress reporting.
+ * Sets the `ContentType` based on file extension if you do not provide it (as
+   long as you provide the `filename` parameter).
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end' (data)` - emitted when the file is uploaded successfully
+   - `data` is the same object that you get from `putObject` in AWS SDK
+ * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
+   change. Note that it is possible for progress to go backwards when S3 fails
+   and the upload must be retried.
+ * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
+   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
+   module because we might need to read from multiple locations in the file at
+   the same time. `fdSlicer` is an object for which you can call
+   `createReadStream(options)`. See the fd-slicer README for more information.
+
+And these methods:
+
+ * `abort()` - call this to stop the operation.
 
 ## Testing
 
