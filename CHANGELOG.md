@@ -1,3 +1,9 @@
+### 4.1.1
+
+ * `uploadFile` and `uploadDir` now have optional argument `defaultContentType`.
+ * Fixes default Content-Type able to be mutated by third party modules
+   changing the global `mime.default_type` variable.
+
 ### 4.1.0
 
  * Content-Type header is now automatically filled out if you do not explicitly
