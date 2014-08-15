@@ -167,7 +167,7 @@ uploader.on('end', function() {
 ```js
 var params = {
   stream: someReadableStream,
-  filename: "filename.txt", // optional, provide a filename so that
+  localFile: "filename.txt", // optional, provide a filename so that
                             // Content-Type can be automatically populated.
   s3Params: {
     Bucket: "s3 bucket name",
@@ -337,7 +337,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-pro
  * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body`.
    Some optimizations can be made if you provide `ContentLength`, but it is
    optional.
- * (optional) `filename`: provide a filename so that Content-Type can be
+ * (optional) `localFile`: provide a filename so that Content-Type can be
    automatically populated.
  * (optional) `partSize`: This is the size of each part in the multipart
    upload. Defaults to 5MB which is the minimum S3 allows. Note that S3 has a
@@ -345,7 +345,7 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-pro
    stream that you can upload. The maximum value for `partSize` is 5GB.
  * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
    parameter in `s3Params`, it will be automatically set for you based on the
-   file extension of `filename`. If the extension is unrecognized,
+   file extension of `localFile`. If the extension is unrecognized,
    `defaultContentType` will be used instead. Defaults to
    `application/octet-stream`.
 
@@ -373,11 +373,6 @@ And these events:
  * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
    change. Note that it is possible for progress to go backwards when S3 fails
    and the upload must be retried.
- * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
-   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
-   module because we might need to read from multiple locations in the file at
-   the same time. `fdSlicer` is an object for which you can call
-   `createReadStream(options)`. See the fd-slicer README for more information.
 
 And these methods:
 
@@ -455,11 +450,13 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-pro
  * `fd`: The file descriptor to read from.
  * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body` and
    `ContentLength`.
- * (optional) `filename`: provide a filename so that Content-Type can be
+ * (optional) `localFile`: provide a filename so that Content-Type can be
    automatically populated.
+ * (optional) `autoClose`: boolean, whether or not to close `fd` when the
+   upload is complete. Defaults to `false`.
  * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
    parameter in `s3Params`, it will be automatically set for you based on the
-   file extension of `filename`. If the extension is unrecognized,
+   file extension of `localFile`. If the extension is unrecognized,
    `defaultContentType` will be used instead. Defaults to
    `application/octet-stream`.
 
@@ -472,7 +469,7 @@ The difference between using AWS SDK `putObject` and this one:
  * Retry based on the client's retry settings.
  * Progress reporting.
  * Sets the `ContentType` based on file extension if you do not provide it (as
-   long as you provide the `filename` parameter).
+   long as you provide the `localFile` parameter).
 
 Returns an `EventEmitter` with these properties:
 
@@ -487,11 +484,11 @@ And these events:
  * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
    change. Note that it is possible for progress to go backwards when S3 fails
    and the upload must be retried.
- * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
-   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
-   module because we might need to read from multiple locations in the file at
-   the same time. `fdSlicer` is an object for which you can call
-   `createReadStream(options)`. See the fd-slicer README for more information.
+ * `'fileOpened' (fdSlicer)` - emitted immediately. We pass the fd to the
+   [fd-slicer](https://github.com/andrewrk/node-fd-slicer) module because we
+   might need to read from multiple locations in the file at the same time.
+   `fdSlicer` is an object for which you can call `createReadStream(options)`.
+   See the fd-slicer README for more information.
 
 And these methods:
 
