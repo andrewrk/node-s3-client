@@ -207,6 +207,11 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-pro
 
  * `s3Params`: params to pass to AWS SDK `putObject`.
  * `localFile`: path to the file on disk you want to upload to S3.
+ * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
+   parameter in `s3Params`, it will be automatically set for you based on the
+   file extension of `localFile`. If the extension is unrecognized,
+   `defaultContentType` will be used instead. Defaults to
+   `application/octet-stream`.
 
 The difference between using AWS SDK `putObject` and this one:
 
@@ -276,9 +281,9 @@ See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-p
 
 `params`:
 
- * `recursive` - `true` or `false` whether or not you want to recurse
-   into directories.
  * `s3Params` - params to pass to AWS SDK `listObjects`.
+ * (optional) `recursive` - `true` or `false` whether or not you want to recurse
+   into directories. Default `false`.
 
 Note that if you set `Delimiter` in `s3Params` then you will get a list of
 objects and folders in the directory you specify. You probably do not want to
@@ -346,14 +351,18 @@ Syncs an entire directory to S3.
 `params`:
 
  * `localDir` - source path on local file system to sync to S3
- * `deleteRemoved` - delete s3 objects with no corresponding local file.
-   default false
- * `getS3Params` - optional function which will be called for every file that
-   needs to be uploaded. See below.
- * `followSymlinks` - defaults to `false`
  * `s3Params`
    - `Prefix` (required)
    - `Bucket` (required)
+ * (optional) `deleteRemoved` - delete s3 objects with no corresponding local file.
+   default false
+ * (optional) `getS3Params` - function which will be called for every file that
+   needs to be uploaded. See below.
+ * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
+   parameter in `s3Params`, it will be automatically set for you based on the
+   file extension of `localFile`. If the extension is unrecognized,
+   `defaultContentType` will be used instead. Defaults to
+   `application/octet-stream`.
 
 ```js
 function getS3Params(localFile, stat, callback) {
@@ -409,12 +418,12 @@ Syncs an entire directory from S3.
 `params`:
 
  * `localDir` - destination directory on local file system to sync to
- * `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
- * `getS3Params` - optional function which will be called for every object that
-   needs to be downloaded. See below.
  * `s3Params`
    - `Prefix` (required)
    - `Bucket` (required)
+ * (optional) `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
+ * (optional) `getS3Params` - function which will be called for every object that
+   needs to be downloaded. See below.
 
 ```js
 function getS3Params(localFile, s3Object, callback) {
@@ -475,7 +484,7 @@ Deletes an entire directory on S3.
 
  * `Bucket`
  * `Prefix`
- * `MFA` (optional)
+ * (optional) `MFA`
 
 Returns an `EventEmitter` with these properties:
 
