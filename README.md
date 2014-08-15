@@ -349,6 +349,8 @@ Syncs an entire directory to S3.
  * `getS3Params` - optional function which will be called for every file that
    needs to be uploaded. See below.
  * `followSymlinks` - defaults to `false`
+ * `guessMimeType` - this will be over-written if you specify a s3Params.ContentType with the getS3Params function listed below.
+   default true
  * `s3Params`
    - `Prefix` (required)
    - `Bucket` (required)
