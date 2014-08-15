@@ -20,6 +20,37 @@
 See also the companion CLI tool which is meant to be a drop-in replacement for
 s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
+
+- [Synopsis](#synopsis)
+  - [Create a client](#create-a-client)
+  - [Create a client from existing AWS.S3 object](#create-a-client-from-existing-awss3-object)
+  - [Upload a file to S3](#upload-a-file-to-s3)
+  - [Download a file from S3](#download-a-file-from-s3)
+  - [Sync a directory to S3](#sync-a-directory-to-s3)
+  - [Upload a stream to S3](#upload-a-stream-to-s3)
+- [Tips](#tips)
+- [API Documentation](#api-documentation)
+  - [s3.createClient(options)](#s3createclientoptions)
+  - [s3.getPublicUrl(bucket, key, [bucketLocation])](#s3getpublicurlbucket-key-bucketlocation)
+  - [s3.getPublicUrlHttp(bucket, key)](#s3getpublicurlhttpbucket-key)
+  - [client.uploadDir(params)](#clientuploaddirparams)
+  - [client.uploadStream(params)](#clientuploadstreamparams)
+  - [client.uploadFile(params)](#clientuploadfileparams)
+  - [client.uploadFd(params)](#clientuploadfdparams)
+  - [client.downloadDir(params)](#clientdownloaddirparams)
+  - [client.downloadFile(params)](#clientdownloadfileparams)
+  - [client.listObjects(params)](#clientlistobjectsparams)
+  - [client.deleteObjects(s3Params)](#clientdeleteobjectss3params)
+  - [client.deleteDir(s3Params)](#clientdeletedirs3params)
+  - [client.copyObject(s3Params)](#clientcopyobjects3params)
+  - [client.moveObject(s3Params)](#clientmoveobjects3params)
+- [Testing](#testing)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Synopsis
 
 ### Create a client
@@ -230,6 +261,144 @@ Works for any region, and returns a string which looks like this:
 
 `http://bucket.s3.amazonaws.com/key`
 
+### client.uploadDir(params)
+
+Syncs an entire directory to S3.
+
+`params`:
+
+ * `localDir` - source path on local file system to sync to S3
+ * `s3Params`
+   - `Prefix` (required)
+   - `Bucket` (required)
+ * (optional) `deleteRemoved` - delete s3 objects with no corresponding local file.
+   default false
+ * (optional) `getS3Params` - function which will be called for every file that
+   needs to be uploaded. See below.
+ * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
+   parameter in `s3Params`, it will be automatically set for you based on the
+   file extension of `localFile`. If the extension is unrecognized,
+   `defaultContentType` will be used instead. Defaults to
+   `application/octet-stream`.
+
+```js
+function getS3Params(localFile, stat, callback) {
+  // call callback like this:
+  var err = new Error(...); // only if there is an error
+  var s3Params = { // if there is no error
+    ContentType: getMimeType(localFile), // just an example
+  };
+  // pass `null` for `s3Params` if you want to skip uploading this file.
+  callback(err, s3Params);
+}
+```
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+ * `progressMd5Amount`
+ * `progressMd5Total`
+ * `deleteAmount`
+ * `deleteTotal`
+ * `filesFound`
+ * `objectsFound`
+ * `doneFindingFiles`
+ * `doneFindingObjects`
+ * `doneMd5`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when all files are uploaded
+ * `'progress'` - emitted when any of the above progress properties change.
+
+`uploadDir` works like this:
+
+ 0. Start listing all S3 objects for the target `Prefix`. S3 guarantees
+    returned objects to be in sorted order.
+ 0. Meanwhile, recursively find all files in `localDir`.
+ 0. Once all local files are found, we sort them (the same way that S3 sorts).
+ 0. Next we iterate over the sorted local file list one at a time, computing
+    MD5 sums.
+ 0. Now S3 object listing and MD5 sum computing are happening in parallel. As
+    each operation progresses we compare both sorted lists side-by-side,
+    iterating over them one at a time, uploading files whose MD5 sums don't
+    match the remote object (or the remote object is missing), and, if
+    `deleteRemoved` is set, deleting remote objects whose corresponding local
+    files are missing.
+
+### client.uploadStream(params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+
+`params`:
+
+ * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body`.
+   Some optimizations can be made if you provide `ContentLength`, but it is
+   optional.
+ * (optional) `filename`: provide a filename so that Content-Type can be
+   automatically populated.
+ * (optional) `partSize`: This is the size of each part in the multipart
+   upload. Defaults to 5MB which is the minimum S3 allows. Note that S3 has a
+   maximum of 10000 parts, so `10000 * partSize` is the maximum size of the
+   stream that you can upload. The maximum value for `partSize` is 5GB.
+ * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
+   parameter in `s3Params`, it will be automatically set for you based on the
+   file extension of `filename`. If the extension is unrecognized,
+   `defaultContentType` will be used instead. Defaults to
+   `application/octet-stream`.
+
+The difference between using AWS SDK `putObject` and this one:
+
+ * This works with a stream, not a file or buffer.
+ * Does not require knowing `ContentLength` ahead of time.
+ * Performs a multipart upload.
+ * If the reported MD5 upon upload completion does not match, it retries.
+ * Retry based on the client's retry settings. Writes the stream to a temp
+   file in case retry is needed. Temp file is automatically cleaned up.
+ * Progress reporting.
+ * Sets the `ContentType` based on file extension if you do not provide it.
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end' (data)` - emitted when the file is uploaded successfully
+   - `data` is the same object that you get from `putObject` in AWS SDK
+ * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
+   change. Note that it is possible for progress to go backwards when S3 fails
+   and the upload must be retried.
+ * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
+   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
+   module because we might need to read from multiple locations in the file at
+   the same time. `fdSlicer` is an object for which you can call
+   `createReadStream(options)`. See the fd-slicer README for more information.
+
+And these methods:
+
+ * `abort()` - call this to stop the operation.
+
+`uploadStream` works like this:
+
+ 0. Open a temp file with w+ flags and start streaming to it.
+ 0. If `ContentLength` is provided, we can proceed. Otherwise wait until
+    `partSize` bytes have been written to the temp file or the stream is
+    complete.
+ 0. If the stream is complete, begin a `putObject`. Otherwise begin a multipart
+    upload.
+ 0. Stream the still-open temp file into the upload. Streaming from disk rather
+    than buffering `partSize` in memory gives us a low memory footprint.
+ 0. If the upload completes successfully to S3, then we remove the temp file
+    and we're done.
+ 0. If S3 fails, then we retry the upload using the temp file (we still haven't
+    closed it). The retry will know the Content-Length. If all the retries fail
+    or we succeed then we remove the temp file.
+
 ### client.uploadFile(params)
 
 See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
@@ -276,6 +445,122 @@ And these events:
 And these methods:
 
  * `abort()` - call this to stop the operation.
+
+### client.uploadFd(params)
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
+
+`params`:
+
+ * `fd`: The file descriptor to read from.
+ * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body` and
+   `ContentLength`.
+ * (optional) `filename`: provide a filename so that Content-Type can be
+   automatically populated.
+ * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
+   parameter in `s3Params`, it will be automatically set for you based on the
+   file extension of `filename`. If the extension is unrecognized,
+   `defaultContentType` will be used instead. Defaults to
+   `application/octet-stream`.
+
+The difference between using AWS SDK `putObject` and this one:
+
+ * This works with fds, not files, streams, or buffers.
+ * If the reported MD5 upon upload completion does not match, it retries.
+ * If the file size is large enough, uses multipart upload to upload parts in
+   parallel.
+ * Retry based on the client's retry settings.
+ * Progress reporting.
+ * Sets the `ContentType` based on file extension if you do not provide it (as
+   long as you provide the `filename` parameter).
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end' (data)` - emitted when the file is uploaded successfully
+   - `data` is the same object that you get from `putObject` in AWS SDK
+ * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
+   change. Note that it is possible for progress to go backwards when S3 fails
+   and the upload must be retried.
+ * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
+   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
+   module because we might need to read from multiple locations in the file at
+   the same time. `fdSlicer` is an object for which you can call
+   `createReadStream(options)`. See the fd-slicer README for more information.
+
+And these methods:
+
+ * `abort()` - call this to stop the operation.
+
+### client.downloadDir(params)
+
+Syncs an entire directory from S3.
+
+`params`:
+
+ * `localDir` - destination directory on local file system to sync to
+ * `s3Params`
+   - `Prefix` (required)
+   - `Bucket` (required)
+ * (optional) `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
+ * (optional) `getS3Params` - function which will be called for every object that
+   needs to be downloaded. See below.
+
+```js
+function getS3Params(localFile, s3Object, callback) {
+  // localFile is the destination path where the object will be written to
+  // s3Object is same as one element in the `Contents` array from here:
+  // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-property
+
+  // call callback like this:
+  var err = new Error(...); // only if there is an error
+  var s3Params = { // if there is no error
+    VersionId: "abcd", // just an example
+  };
+  // pass `null` for `s3Params` if you want to skip downloading this object.
+  callback(err, s3Params);
+}
+```
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+ * `progressMd5Amount`
+ * `progressMd5Total`
+ * `deleteAmount`
+ * `deleteTotal`
+ * `filesFound`
+ * `objectsFound`
+ * `doneFindingFiles`
+ * `doneFindingObjects`
+ * `doneMd5`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end'` - emitted when all files are uploaded
+ * `'progress'` - emitted when any of the progress properties above change
+
+`downloadDir` works like this:
+
+ 0. Start listing all S3 objects for the target `Prefix`. S3 guarantees
+    returned objects to be in sorted order.
+ 0. Meanwhile, recursively find all files in `localDir`.
+ 0. Once all local files are found, we sort them (the same way that S3 sorts).
+ 0. Next we iterate over the sorted local file list one at a time, computing
+    MD5 sums.
+ 0. Now S3 object listing and MD5 sum computing are happening in parallel. As
+    each operation progresses we compare both sorted lists side-by-side,
+    iterating over them one at a time, downloading objects whose MD5 sums don't
+    match the local file (or the local file is missing), and, if
+    `deleteRemoved` is set, deleting local files whose corresponding objects
+    are missing.
 
 ### client.downloadFile(params)
 
@@ -374,138 +659,6 @@ And these events:
  * `'progress'` - emitted when the `progressAmount` or `progressTotal` properties change.
  * `'data' (data)` - emitted when a request completes. There may be more.
 
-### client.uploadDir(params)
-
-Syncs an entire directory to S3.
-
-`params`:
-
- * `localDir` - source path on local file system to sync to S3
- * `s3Params`
-   - `Prefix` (required)
-   - `Bucket` (required)
- * (optional) `deleteRemoved` - delete s3 objects with no corresponding local file.
-   default false
- * (optional) `getS3Params` - function which will be called for every file that
-   needs to be uploaded. See below.
- * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
-   parameter in `s3Params`, it will be automatically set for you based on the
-   file extension of `localFile`. If the extension is unrecognized,
-   `defaultContentType` will be used instead. Defaults to
-   `application/octet-stream`.
-
-```js
-function getS3Params(localFile, stat, callback) {
-  // call callback like this:
-  var err = new Error(...); // only if there is an error
-  var s3Params = { // if there is no error
-    ContentType: getMimeType(localFile), // just an example
-  };
-  // pass `null` for `s3Params` if you want to skip uploading this file.
-  callback(err, s3Params);
-}
-```
-
-Returns an `EventEmitter` with these properties:
-
- * `progressAmount`
- * `progressTotal`
- * `progressMd5Amount`
- * `progressMd5Total`
- * `deleteAmount`
- * `deleteTotal`
- * `filesFound`
- * `objectsFound`
- * `doneFindingFiles`
- * `doneFindingObjects`
- * `doneMd5`
-
-And these events:
-
- * `'error' (err)`
- * `'end'` - emitted when all files are uploaded
- * `'progress'` - emitted when any of the above progress properties change.
-
-`uploadDir` works like this:
-
- 0. Start listing all S3 objects for the target `Prefix`. S3 guarantees
-    returned objects to be in sorted order.
- 0. Meanwhile, recursively find all files in `localDir`.
- 0. Once all local files are found, we sort them (the same way that S3 sorts).
- 0. Next we iterate over the sorted local file list one at a time, computing
-    MD5 sums.
- 0. Now S3 object listing and MD5 sum computing are happening in parallel. As
-    each operation progresses we compare both sorted lists side-by-side,
-    iterating over them one at a time, uploading files whose MD5 sums don't
-    match the remote object (or the remote object is missing), and, if
-    `deleteRemoved` is set, deleting remote objects whose corresponding local
-    files are missing.
-
-### client.downloadDir(params)
-
-Syncs an entire directory from S3.
-
-`params`:
-
- * `localDir` - destination directory on local file system to sync to
- * `s3Params`
-   - `Prefix` (required)
-   - `Bucket` (required)
- * (optional) `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
- * (optional) `getS3Params` - function which will be called for every object that
-   needs to be downloaded. See below.
-
-```js
-function getS3Params(localFile, s3Object, callback) {
-  // localFile is the destination path where the object will be written to
-  // s3Object is same as one element in the `Contents` array from here:
-  // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-property
-
-  // call callback like this:
-  var err = new Error(...); // only if there is an error
-  var s3Params = { // if there is no error
-    VersionId: "abcd", // just an example
-  };
-  // pass `null` for `s3Params` if you want to skip downloading this object.
-  callback(err, s3Params);
-}
-```
-
-Returns an `EventEmitter` with these properties:
-
- * `progressAmount`
- * `progressTotal`
- * `progressMd5Amount`
- * `progressMd5Total`
- * `deleteAmount`
- * `deleteTotal`
- * `filesFound`
- * `objectsFound`
- * `doneFindingFiles`
- * `doneFindingObjects`
- * `doneMd5`
-
-And these events:
-
- * `'error' (err)`
- * `'end'` - emitted when all files are uploaded
- * `'progress'` - emitted when any of the progress properties above change
-
-`downloadDir` works like this:
-
- 0. Start listing all S3 objects for the target `Prefix`. S3 guarantees
-    returned objects to be in sorted order.
- 0. Meanwhile, recursively find all files in `localDir`.
- 0. Once all local files are found, we sort them (the same way that S3 sorts).
- 0. Next we iterate over the sorted local file list one at a time, computing
-    MD5 sums.
- 0. Now S3 object listing and MD5 sum computing are happening in parallel. As
-    each operation progresses we compare both sorted lists side-by-side,
-    iterating over them one at a time, downloading objects whose MD5 sums don't
-    match the local file (or the local file is missing), and, if
-    `deleteRemoved` is set, deleting local files whose corresponding objects
-    are missing.
-
 ### client.deleteDir(s3Params)
 
 Deletes an entire directory on S3.
@@ -565,128 +718,6 @@ Returns an `EventEmitter` with these events:
  * `'error' (err)`
  * `'copySuccess' (data)`
  * `'end' (data)`
-
-### client.uploadStream(params)
-
-See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
-
-`params`:
-
- * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body`.
-   Some optimizations can be made if you provide `ContentLength`, but it is
-   optional.
- * (optional) `filename`: provide a filename so that Content-Type can be
-   automatically populated.
- * (optional) `partSize`: This is the size of each part in the multipart
-   upload. Defaults to 5MB which is the minimum S3 allows. Note that S3 has a
-   maximum of 10000 parts, so `10000 * partSize` is the maximum size of the
-   stream that you can upload. The maximum value for `partSize` is 5GB.
- * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
-   parameter in `s3Params`, it will be automatically set for you based on the
-   file extension of `filename`. If the extension is unrecognized,
-   `defaultContentType` will be used instead. Defaults to
-   `application/octet-stream`.
-
-The difference between using AWS SDK `putObject` and this one:
-
- * This works with a stream, not a file or buffer.
- * Does not require knowing `ContentLength` ahead of time.
- * Performs a multipart upload.
- * If the reported MD5 upon upload completion does not match, it retries.
- * Retry based on the client's retry settings. Writes the stream to a temp
-   file in case retry is needed. Temp file is automatically cleaned up.
- * Progress reporting.
- * Sets the `ContentType` based on file extension if you do not provide it.
-
-Returns an `EventEmitter` with these properties:
-
- * `progressAmount`
- * `progressTotal`
-
-And these events:
-
- * `'error' (err)`
- * `'end' (data)` - emitted when the file is uploaded successfully
-   - `data` is the same object that you get from `putObject` in AWS SDK
- * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
-   change. Note that it is possible for progress to go backwards when S3 fails
-   and the upload must be retried.
- * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
-   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
-   module because we might need to read from multiple locations in the file at
-   the same time. `fdSlicer` is an object for which you can call
-   `createReadStream(options)`. See the fd-slicer README for more information.
-
-And these methods:
-
- * `abort()` - call this to stop the operation.
-
-`uploadStream` works like this:
-
- 0. Open a temp file with w+ flags and start streaming to it.
- 0. If `ContentLength` is provided, we can proceed. Otherwise wait until
-    `partSize` bytes have been written to the temp file or the stream is
-    complete.
- 0. If the stream is complete, begin a `putObject`. Otherwise begin a multipart
-    upload.
- 0. Stream the still-open temp file into the upload. Streaming from disk rather
-    than buffering `partSize` in memory gives us a low memory footprint.
- 0. If the upload completes successfully to S3, then we remove the temp file
-    and we're done.
- 0. If S3 fails, then we retry the upload using the temp file (we still haven't
-    closed it). The retry will know the Content-Length. If all the retries fail
-    or we succeed then we remove the temp file.
-
-### client.uploadFd(params)
-
-See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
-
-`params`:
-
- * `fd`: The file descriptor to read from.
- * `s3Params`: params to pass to AWS SDK `putObject`, except for `Body` and
-   `ContentLength`.
- * (optional) `filename`: provide a filename so that Content-Type can be
-   automatically populated.
- * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
-   parameter in `s3Params`, it will be automatically set for you based on the
-   file extension of `filename`. If the extension is unrecognized,
-   `defaultContentType` will be used instead. Defaults to
-   `application/octet-stream`.
-
-The difference between using AWS SDK `putObject` and this one:
-
- * This works with fds, not files, streams, or buffers.
- * If the reported MD5 upon upload completion does not match, it retries.
- * If the file size is large enough, uses multipart upload to upload parts in
-   parallel.
- * Retry based on the client's retry settings.
- * Progress reporting.
- * Sets the `ContentType` based on file extension if you do not provide it (as
-   long as you provide the `filename` parameter).
-
-Returns an `EventEmitter` with these properties:
-
- * `progressAmount`
- * `progressTotal`
-
-And these events:
-
- * `'error' (err)`
- * `'end' (data)` - emitted when the file is uploaded successfully
-   - `data` is the same object that you get from `putObject` in AWS SDK
- * `'progress'` - emitted when `progressAmount` or `progressTotal` properties
-   change. Note that it is possible for progress to go backwards when S3 fails
-   and the upload must be retried.
- * `'fileOpened' (fdSlicer)` - emitted when `localFile` has been opened. The file
-   is opened with the [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
-   module because we might need to read from multiple locations in the file at
-   the same time. `fdSlicer` is an object for which you can call
-   `createReadStream(options)`. See the fd-slicer README for more information.
-
-And these methods:
-
- * `abort()` - call this to stop the operation.
 
 ## Testing
 
