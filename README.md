@@ -46,8 +46,9 @@ var s3 = require('s3');
 var awsS3Client = new AWS.S3(s3Options);
 var options = {
   s3Client: awsS3Client,
+  // more options available. See API docs below.
 };
-var client = s3.fromAwsSdkS3(options);
+var client = s3.createClient(options);
 ```
 
 ### Upload a file to S3
