@@ -1,3 +1,8 @@
+### 4.2.0
+
+ * use new AWS SDK API to avoid PassThrough stream workaround
+ * update aws-sdk to 2.0.17
+
 ### 4.1.1
 
  * `uploadFile` and `uploadDir` now have optional argument `defaultContentType`.
