@@ -243,6 +243,9 @@ And these events:
    module because we might need to read from multiple locations in the file at
    the same time. `fdSlicer` is an object for which you can call
    `createReadStream(options)`. See the fd-slicer README for more information.
+ * `'fileClosed' (fdSlicer)` - emitted when `localFile` has been closed. The file
+   is closed after [fd-slicer](https://github.com/andrewrk/node-fd-slicer)
+   is done reading the file.
 
 And these methods:
 
