@@ -157,6 +157,37 @@ describe("s3", function () {
     doDownloadFileTest(done);
   });
 
+  it("downloadBuffer", function(done) {
+    var client = createClient();
+    var downloader = client.downloadBuffer({Key: remoteFile, Bucket: s3Bucket});
+    downloader.on('error', done);
+    var progress = 0;
+    var progressEventCount = 0;
+    var gotHttpHeaders = false;
+    downloader.on('progress', function() {
+      var amountDone = downloader.progressAmount;
+      var amountTotal = downloader.progressTotal;
+      var newProgress = amountDone / amountTotal;
+      progressEventCount += 1;
+      assert(newProgress >= progress, "old progress: " + progress + ", new progress: " + newProgress);
+      progress = newProgress;
+    });
+    downloader.on('httpHeaders', function(statusCode, headers, resp) {
+      var contentType = headers['content-type'];
+      assert.strictEqual(contentType, "image/png");
+      gotHttpHeaders = true;
+    });
+    downloader.on('end', function(buffer) {
+      assert.strictEqual(progress, 1);
+      assert(progressEventCount >= 3, "expected at least 3 progress events. got " + progressEventCount);
+      var md5sum = crypto.createHash('md5');
+      md5sum.update(buffer);
+      assert.strictEqual(md5sum.digest('hex'), hexdigest)
+      assert.ok(gotHttpHeaders);
+      done();
+    });
+  });
+
   it("lists objects", function(done) {
     var params = {
       recursive: true,

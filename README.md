@@ -273,7 +273,33 @@ Returns an `EventEmitter` with these properties:
 And these events:
 
  * `'error' (err)`
- * `'end'` - emitted when the file is uploaded successfully
+ * `'end'` - emitted when the file is downloaded successfully
+ * `'progress'` - emitted when `progressAmount` and `progressTotal`
+   properties change.
+
+### client.downloadBuffer(s3Params)
+
+http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
+
+ * `s3Params`: params to pass to AWS SDK `getObject`.
+
+The difference between using AWS SDK `getObject` and this one:
+
+ * This works with a buffer only.
+ * If the reported MD5 upon download completion does not match, it retries.
+ * Retry based on the client's retry settings.
+ * Progress reporting.
+
+Returns an `EventEmitter` with these properties:
+
+ * `progressAmount`
+ * `progressTotal`
+
+And these events:
+
+ * `'error' (err)`
+ * `'end' (buffer)` - emitted when the file is downloaded successfully.
+   `buffer` is a `Buffer` containing the object data.
  * `'progress'` - emitted when `progressAmount` and `progressTotal`
    properties change.
 
