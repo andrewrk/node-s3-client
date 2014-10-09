@@ -1,3 +1,7 @@
+### 4.3.1
+
+ * Update dependencies
+
 ### 4.3.0
 
  * fix open file descriptor leak. Thanks
