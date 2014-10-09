@@ -34,7 +34,7 @@
     "ncp": "~0.6.0"
   },
   "dependencies": {
-    "aws-sdk": "~2.0.17",
+    "aws-sdk": "~2.0.19",
     "findit": "~2.0.0",
     "graceful-fs": "~3.0.2",
     "mkdirp": "~0.5.0",
