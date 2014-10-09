@@ -1,3 +1,12 @@
+### 4.3.0
+
+ * fix open file descriptor leak. Thanks
+   [Ross Wilson](https://github.com/wilsonwc)
+ * add downloadBuffer API
+ * uploadDir: add 'fileUploadStart', 'fileUploadEnd' events
+ * downloadDir: add 'fileDownloadStart', 'fileDownloadEnd' events
+ * update aws-sdk to 2.0.19
+
 ### 4.2.0
 
  * use new AWS SDK API to avoid PassThrough stream workaround
