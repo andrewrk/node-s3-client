@@ -423,6 +423,10 @@ And these events:
  * `'error' (err)`
  * `'end'` - emitted when all files are uploaded
  * `'progress'` - emitted when any of the above progress properties change.
+ * `'fileUploadStart' (localFilePath, s3Key)` - emitted when a file begins
+   uploading.
+ * `'fileUploadEnd' (localFilePath, s3Key)` - emitted when a file successfully
+   finishes uploading.
 
 `uploadDir` works like this:
 
@@ -486,8 +490,12 @@ Returns an `EventEmitter` with these properties:
 And these events:
 
  * `'error' (err)`
- * `'end'` - emitted when all files are uploaded
+ * `'end'` - emitted when all files are downloaded
  * `'progress'` - emitted when any of the progress properties above change
+ * `'fileDownloadStart' (localFilePath, s3Key)` - emitted when a file begins
+   downloading.
+ * `'fileDownloadEnd' (localFilePath, s3Key)` - emitted when a file successfully
+   finishes downloading.
 
 `downloadDir` works like this:
 
