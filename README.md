@@ -141,6 +141,11 @@ uploader.on('end', function() {
 
 ## API Documentation
 
+### s3.AWS
+
+This contains a reference to the aws-sdk module. It is a valid use case to use
+both this module and the lower level aws-sdk module in tandem.
+
 ### s3.createClient(options)
 
 Creates an S3 client.
