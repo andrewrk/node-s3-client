@@ -390,7 +390,7 @@ Syncs an entire directory to S3.
  * (optional) `deleteRemoved` - delete s3 objects with no corresponding local file.
    default false
  * (optional) `getS3Params` - function which will be called for every file that
-   needs to be uploaded. See below.
+   needs to be uploaded. You can use this to skip some files. See below.
  * (optional) `defaultContentType`: Unless you explicitly set the `ContentType`
    parameter in `s3Params`, it will be automatically set for you based on the
    file extension of `localFile`. If the extension is unrecognized,
@@ -460,7 +460,8 @@ Syncs an entire directory from S3.
    - `Bucket` (required)
  * (optional) `deleteRemoved` - delete local files with no corresponding s3 object. default `false`
  * (optional) `getS3Params` - function which will be called for every object that
-   needs to be downloaded. See below.
+   needs to be downloaded. You can use this to skip downloading some objects.
+   See below.
 
 ```js
 function getS3Params(localFile, s3Object, callback) {
