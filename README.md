@@ -396,6 +396,8 @@ Syncs an entire directory to S3.
    file extension of `localFile`. If the extension is unrecognized,
    `defaultContentType` will be used instead. Defaults to
    `application/octet-stream`.
+ * (optional) `followSymlinks` - Set this to `false` to ignore symlinks.
+   Defaults to `true`.
 
 ```js
 function getS3Params(localFile, stat, callback) {
@@ -462,6 +464,8 @@ Syncs an entire directory from S3.
  * (optional) `getS3Params` - function which will be called for every object that
    needs to be downloaded. You can use this to skip downloading some objects.
    See below.
+ * (optional) `followSymlinks` - Set this to `false` to ignore symlinks.
+   Defaults to `true`.
 
 ```js
 function getS3Params(localFile, s3Object, callback) {
