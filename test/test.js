@@ -8,6 +8,7 @@ var fs = require('fs');
 var mkdirp = require('mkdirp');
 var crypto = require('crypto');
 var rimraf = require('rimraf');
+var StreamSink = require('streamsink');
 var tempDir = path.join(__dirname, 'tmp');
 var localFile = path.join(tempDir, 'random.png');
 var remoteRoot = "node-s3-test/";
@@ -182,6 +183,27 @@ describe("s3", function () {
       assert(progressEventCount >= 3, "expected at least 3 progress events. got " + progressEventCount);
       var md5sum = crypto.createHash('md5');
       md5sum.update(buffer);
+      assert.strictEqual(md5sum.digest('hex'), hexdigest)
+      assert.ok(gotHttpHeaders);
+      done();
+    });
+  });
+
+  it("downloadStream", function(done) {
+    var client = createClient();
+    var downloadStream = client.downloadStream({Key: remoteFile, Bucket: s3Bucket});
+    downloadStream.on('error', done);
+    var gotHttpHeaders = false;
+    downloadStream.on('httpHeaders', function(statusCode, headers, resp) {
+      var contentType = headers['content-type'];
+      assert.strictEqual(contentType, "image/png");
+      gotHttpHeaders = true;
+    });
+    var sink = new StreamSink();
+    downloadStream.pipe(sink);
+    sink.on('finish', function() {
+      var md5sum = crypto.createHash('md5');
+      md5sum.update(sink.toBuffer());
       assert.strictEqual(md5sum.digest('hex'), hexdigest)
       assert.ok(gotHttpHeaders);
       done();

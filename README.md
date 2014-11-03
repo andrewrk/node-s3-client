@@ -308,6 +308,23 @@ And these events:
  * `'progress'` - emitted when `progressAmount` and `progressTotal`
    properties change.
 
+### client.downloadStream(s3Params)
+
+http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
+
+ * `s3Params`: params to pass to AWS SDK `getObject`.
+
+The difference between using AWS SDK `getObject` and this one:
+
+ * This works with a stream only.
+
+If you want retries, progress, or MD5 checking, you must code it yourself.
+
+Returns a `ReadableStream` with these additional events:
+
+ * `'httpHeaders' (statusCode, headers)` - contains the HTTP response
+   headers and status code.
+
 ### client.listObjects(params)
 
 See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-property
