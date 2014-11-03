@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "aws-sdk": "~2.0.23",
-    "fd-slicer": "~0.3.2",
+    "fd-slicer": "~0.4.0",
     "findit2": "~2.2.3",
     "graceful-fs": "~3.0.4",
     "mime": "~1.2.11",
