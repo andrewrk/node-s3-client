@@ -34,13 +34,13 @@
     "ncp": "~1.0.1"
   },
   "dependencies": {
-    "aws-sdk": "~2.0.23",
-    "fd-slicer": "~0.4.0",
+    "aws-sdk": "~2.0.31",
+    "fd-slicer": "~1.0.0",
     "findit2": "~2.2.3",
-    "graceful-fs": "~3.0.4",
+    "graceful-fs": "~3.0.5",
     "mime": "~1.2.11",
     "mkdirp": "~0.5.0",
-    "pend": "~1.1.3",
+    "pend": "~1.2.0",
     "rimraf": "~2.2.8",
     "streamsink": "~1.2.0"
   },
