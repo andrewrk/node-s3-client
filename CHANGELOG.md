@@ -1,3 +1,11 @@
+### 4.4.0
+
+ * Export aws-sdk dependency
+ * Update dependencies
+ * Ability to handle symlinks in uploadDir and downloadDir
+ * Expose S3 constants
+ * Add downloadStream API
+
 ### 4.3.1
 
  * Update dependencies
