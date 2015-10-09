@@ -36,6 +36,7 @@ function createClient() {
     s3Options: {
       accessKeyId: process.env.S3_KEY,
       secretAccessKey: process.env.S3_SECRET,
+      endpoint: process.env.S3_ENDPOINT,
     },
   });
 }
