@@ -33,6 +33,7 @@ var client = s3.createClient({
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
+	region: "your region"
     // any other options are passed to new AWS.S3()
     // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
   },
