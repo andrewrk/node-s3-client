@@ -600,6 +600,28 @@ Returns an `EventEmitter` with these events:
  * `'copySuccess' (data)`
  * `'end' (data)`
 
+## Examples
+
+### Check if a file exists in S3
+
+Using the AWS SDK, you can send a HEAD request, which will tell you if a file exists at `Key`.
+
+See http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#headObject-property
+
+```js
+var client = require('s3').createClient({ /* options */ });
+client.s3.headObject({
+  Bucket: 's3 bucket name',
+  Key: 'some/remote/file'
+}, function(err, data) {
+  if (err) {
+    // file does not exist (err.statusCode == 404)
+    return;
+  }
+  // file exists
+});
+```
+
 ## Testing
 
 `S3_KEY=<valid_s3_key> S3_SECRET=<valid_s3_secret> S3_BUCKET=<valid_s3_bucket> npm test`
