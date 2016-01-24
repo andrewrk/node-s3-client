@@ -12,4 +12,4 @@ install:
   - gem install fakes3
   - npm install
 before_script:
-  - fakes3 -r /tmp/fakes3_root -p 4567 &
+  - fakes3 -r /mnt/fakes3_root -p 4567 &
