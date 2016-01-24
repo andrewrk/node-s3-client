@@ -8,8 +8,7 @@ node_js:
   - "0.8"
   - "0.6"
   - "iojs"
-install:
-  - gem install fakes3
-  - npm install
-before_script:
-  - fakes3 -r /mnt/fakes3_root -p 4567 &
+addons:
+  hosts:
+    - node-s3-test.localhost
+    - s3-bucket.localhost
