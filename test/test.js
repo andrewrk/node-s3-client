@@ -37,6 +37,7 @@ function createClient() {
       accessKeyId: process.env.S3_KEY,
       secretAccessKey: process.env.S3_SECRET,
       endpoint: process.env.S3_ENDPOINT,
+      sslEnabled: false
     },
   });
 }
