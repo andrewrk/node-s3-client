@@ -13,6 +13,7 @@
  * Uses heuristics to compute multipart ETags client-side to avoid uploading
    or downloading files unnecessarily.
  * Automatically provide Content-Type for uploads based on file extension.
+ * Support third-party S3-compatible platform services like Ceph
 
 See also the companion CLI tool which is meant to be a drop-in replacement for
 s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
@@ -33,7 +34,9 @@ var client = s3.createClient({
   s3Options: {
     accessKeyId: "your s3 key",
     secretAccessKey: "your s3 secret",
-	region: "your region"
+    region: "your region",
+    // endpoint: 's3.yourdomain.com',
+    // sslEnabled: false
     // any other options are passed to new AWS.S3()
     // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
   },
