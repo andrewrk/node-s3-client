@@ -8,6 +8,8 @@ node_js:
   - "0.8"
   - "0.6"
   - "iojs"
-install: gem install fakes3
+install:
+  - gem install fakes3
+  - npm install
 before_script:
   - fakes3 -r /tmp/fakes3_root -p 4567 &
