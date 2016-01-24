@@ -8,6 +8,8 @@ node_js:
   - "0.8"
   - "0.6"
   - "iojs"
+before_script:
+  - mkdir -m 777 /tmp/s3rver_test_directory
 addons:
   hosts:
     - node-s3-test.localhost
