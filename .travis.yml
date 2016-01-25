@@ -11,6 +11,8 @@ node_js:
   - "0.8"
   - "0.6"
   - "iojs"
+before_install:
+  - docker pull 66pix/s3ninja:latest
 before_script:
   - docker run -p "9444:9444" 66pix/s3ninja:latest &
   - sleep 10
