@@ -64,30 +64,6 @@ function createBigFile(size, cb) {
   });
 }
 
-var S3rver = require('s3rver');
-var client;
-
-before(function (done) {
-  client = new S3rver({
-    port: 4567,
-    hostname: 'localhost',
-    silent: false,
-    directory: '/tmp/s3rver_test_directory'
-  }).run(function (err, host, port) {
-    if(err) {
-      return done(err);
-    }
-    var client = createClient()
-    client.createBucket(process.env.S3_BUCKET, function() {
-      client.createBucket(remoteRoot.replace(/\//, ''), done);
-    });
-  });
-});
-
-after(function (done) {
-  client.close(done);
-});
-
 var file1Md5 = "b1946ac92492d2347c6235b4d2611184";
 describe("MultipartETag", function() {
   it("returns unmodified digest", function(done) {
@@ -122,8 +98,7 @@ describe("s3", function () {
       Prefix: remoteRoot,
       Bucket: s3Bucket,
     };
-    var deleter = client.deleteDir(s3Params);
-    deleter.on('end', function() {
+    client.createBucket(s3Bucket, function() {
       done();
     });
   });
