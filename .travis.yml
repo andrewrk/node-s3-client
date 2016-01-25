@@ -9,7 +9,8 @@ node_js:
   - "0.6"
   - "iojs"
 before_script:
-  - mkdir -m 777 /tmp/s3rver_test_directory
+  - docker run -p "9444:9444" 66pix/s3ninja:latest &
+  - sleep 10
 addons:
   hosts:
     - node-s3-test.localhost
