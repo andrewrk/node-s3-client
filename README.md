@@ -5,7 +5,7 @@
  * Automatically retry a configurable number of times when S3 returns an error.
  * Includes logic to make multiple requests when there is a 1000 object limit.
  * Ability to set a limit on the maximum parallelization of S3 requests.
-   Retries get pushed to the end of the paralellization queue.
+   Retries get pushed to the end of the parallelization queue.
  * Ability to sync a dir to and from S3.
  * Progress reporting.
  * Supports files of any size (up to S3's maximum 5 TB object size limit).
