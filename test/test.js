@@ -456,7 +456,7 @@ describe("s3", function () {
   });
 
   it("uploads folder with lots of files", function(done) {
-    createFolderOfFiles(tempManyFilesDir, 100, 100 * 1024, function() {
+    createFolderOfFiles(tempManyFilesDir, 10, 100 * 1024, function() {
       var client = createClient();
       var params = {
         localDir: tempManyFilesDir,
@@ -480,7 +480,7 @@ describe("s3", function () {
         var finder = client.listObjects(params);
         var found = false;
         finder.on('data', function(data) {
-          assert.strictEqual(data.Contents.length, 100);
+          assert.strictEqual(data.Contents.length, 10);
           found = true;
         });
         finder.on('end', function() {
