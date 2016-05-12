@@ -10,14 +10,12 @@ var crypto = require('crypto');
 var rimraf = require('rimraf');
 var StreamSink = require('streamsink');
 var tempDir = path.join(__dirname, 'tmp');
-var tempManyFilesDir = path.join(__dirname, 'tmp', 'many-files-dir');
 var localFile = path.join(tempDir, 'random.png');
 var remoteRoot = "node-s3-test/";
 var remoteFile = remoteRoot + "file.png";
 var remoteFile2 = remoteRoot + "file2.png";
 var remoteFile3 = remoteRoot + "file3.png";
 var remoteDir = remoteRoot + "dir1";
-var remoteManyFilesDir = remoteRoot + "many-files-dir";
 
 var describe = global.describe;
 var it = global.it;
@@ -43,11 +41,11 @@ function createClient() {
   });
 }
 
-function createBigFile(file, size, cb) {
-  mkdirp(path.dirname(file), function(err) {
+function createBigFile(size, cb) {
+  mkdirp(tempDir, function(err) {
     if (err) return cb(err);
     var md5sum = crypto.createHash('md5');
-    var out = fs.createWriteStream(file);
+    var out = fs.createWriteStream(localFile);
     out.on('error', function(err) {
       cb(err);
     });
@@ -63,17 +61,6 @@ function createBigFile(file, size, cb) {
     md5sum.update(buf);
     out.end();
   });
-}
-
-function createFolderOfFiles(dir, numFiles, sizeOfFiles, cb) {
-  for (var i = 0, j = numFiles; i < numFiles; i++) {
-    createBigFile(path.join(dir, 'file' + i), sizeOfFiles, function () {
-      j--;
-      if (j === 0) {
-        cb();
-      }
-    });
-  }
 }
 
 var file1Md5 = "b1946ac92492d2347c6235b4d2611184";
@@ -136,7 +123,7 @@ describe("s3", function () {
   });
 
   it("uploads", function(done) {
-    createBigFile(localFile, 120 * 1024, function (err, _hexdigest) {
+    createBigFile(120 * 1024, function (err, _hexdigest) {
       if (err) return done(err);
       hexdigest = _hexdigest;
       var client = createClient();
@@ -455,44 +442,8 @@ describe("s3", function () {
     });
   });
 
-  it("uploads folder with lots of files", function(done) {
-    createFolderOfFiles(tempManyFilesDir, 10, 100 * 1024, function() {
-      var client = createClient();
-      var params = {
-        localDir: tempManyFilesDir,
-        deleteRemoved: true,
-        s3Params: {
-          Prefix: remoteManyFilesDir,
-          Bucket: s3Bucket,
-        },
-      };
-      var uploader = client.uploadDir(params);
-      uploader.on('end', function() {
-        // get a list of the remote files to ensure they all got created
-        var params = {
-          recursive: true,
-          s3Params: {
-            Bucket: s3Bucket,
-            Prefix: remoteManyFilesDir,
-          },
-        };
-        var client = createClient();
-        var finder = client.listObjects(params);
-        var found = false;
-        finder.on('data', function(data) {
-          assert.strictEqual(data.Contents.length, 10);
-          found = true;
-        });
-        finder.on('end', function() {
-          assert.strictEqual(found, true);
-          done();
-        });
-      });
-    });
-  });
-
   it("multipart upload", function(done) {
-    createBigFile(localFile, 16 * 1024 * 1024, function (err, _hexdigest) {
+    createBigFile(16 * 1024 * 1024, function (err, _hexdigest) {
       if (err) return done(err);
       hexdigest = _hexdigest;
       var client = createClient();
