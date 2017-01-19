@@ -1,5 +1,9 @@
 # High Level Amazon S3 Client
 
+## Installation
+
+`npm install s3 --save`
+
 ## Features
 
  * Automatically retry a configurable number of times when S3 returns an error.
