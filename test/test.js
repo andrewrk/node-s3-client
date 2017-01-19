@@ -39,6 +39,7 @@ function createClient() {
       accessKeyId: process.env.S3_KEY,
       secretAccessKey: process.env.S3_SECRET,
       endpoint: process.env.S3_ENDPOINT,
+      sslEnabled: false
     },
   });
 }
@@ -110,8 +111,7 @@ describe("s3", function () {
       Prefix: remoteRoot,
       Bucket: s3Bucket,
     };
-    var deleter = client.deleteDir(s3Params);
-    deleter.on('end', function() {
+    client.createBucket(s3Bucket, function() {
       done();
     });
   });
