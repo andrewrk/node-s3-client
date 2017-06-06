@@ -2,7 +2,7 @@
 
 ## Installation
 
-`npm install s3 --save`
+`npm install s3-node-client --save`
 
 ## Features
 
@@ -19,15 +19,13 @@
  * Automatically provide Content-Type for uploads based on file extension.
  * Support third-party S3-compatible platform services like Ceph
 
-See also the companion CLI tool which is meant to be a drop-in replacement for
-s3cmd: [s3-cli](https://github.com/andrewrk/node-s3-cli).
 
 ## Synopsis
 
 ### Create a client
 
 ```js
-var s3 = require('s3');
+var s3 = require('s3-node-client');
 
 var client = s3.createClient({
   maxAsyncS3: 20,     // this is the default
@@ -50,7 +48,7 @@ var client = s3.createClient({
 ### Create a client from existing AWS.S3 object
 
 ```js
-var s3 = require('s3');
+var s3 = require('s3-node-client');
 var awsS3Client = new AWS.S3(s3Options);
 var options = {
   s3Client: awsS3Client,
