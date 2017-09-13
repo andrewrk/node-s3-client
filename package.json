@@ -49,5 +49,6 @@
   },
   "directories": {
     "test": "test"
-  }
+  },
+  "types": "./lib/index.d.ts"
 }
