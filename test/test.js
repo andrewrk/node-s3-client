@@ -491,7 +491,43 @@ describe("s3", function () {
     });
   });
 
-  it("multipart upload", function(done) {
+
+  it("uploads folder dir1 ignoring some files", function (done) {
+    var client = createClient();
+    var params = {
+      localDir: path.join(__dirname, "dir1"),
+      s3Params: {
+        Prefix: remoteDir + '_ignore',
+        Bucket: s3Bucket,
+      },
+      ignoreFiles: ['a', 'file2']
+    };
+    var uploader = client.uploadDir(params);
+    uploader.on('end', function () {
+      var params = {
+        recursive: true,
+        s3Params: {
+          Prefix: remoteDir + '_ignore',
+          Bucket: s3Bucket,
+        },
+      };
+      var client = createClient();
+      var finder = client.listObjects(params);
+      var foundFiles = [];
+      finder.on('data', function (data) {
+        data.Contents.forEach(function (object) {
+          foundFiles.push(object.Key.split('/').pop());
+        });
+      });
+      finder.on('end', function () {
+        var shouldNotBeUploaded = foundFiles.filter(fileName => params.ignoreFiles.includes(fileName))
+        assert.strictEqual(shouldNotBeUploaded.length === 0, true);
+        done();
+      });
+    });
+  });
+
+
     createBigFile(localFile, 16 * 1024 * 1024, function (err, _hexdigest) {
       if (err) return done(err);
       hexdigest = _hexdigest;
