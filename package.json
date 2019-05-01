@@ -27,18 +27,18 @@
   "author": "Andrew Kelley",
   "license": "MIT",
   "engines": {
-    "node": ">=0.10.20"
+    "node": ">=10.15.1"
   },
   "devDependencies": {
-    "mocha": "~2.0.1",
+    "mocha": "^6.1.4",
     "ncp": "~1.0.1"
   },
   "dependencies": {
-    "aws-sdk": "~2.4.9",
+    "aws-sdk": "~2.446.0",
     "fd-slicer": "~1.0.0",
     "findit2": "~2.2.3",
     "graceful-fs": "~4.1.4",
-    "mime": "~1.2.11",
+    "mime": "^2.4.2",
     "mkdirp": "~0.5.0",
     "pend": "~1.2.0",
     "rimraf": "~2.2.8",
