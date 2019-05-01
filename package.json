@@ -27,7 +27,7 @@
   "author": "Andrew Kelley",
   "license": "MIT",
   "engines": {
-    "node": ">=10.15.1"
+    "node": ">=10.13.0"
   },
   "devDependencies": {
     "mocha": "^6.1.4",
